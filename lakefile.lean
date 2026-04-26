@@ -17,3 +17,6 @@ lean_exe «test-token» where
 
 lean_exe «test-parser» where
   root := `test.ParserTest
+
+lean_exe «soak» where
+  root := `test.Soak

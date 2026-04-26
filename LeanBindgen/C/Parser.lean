@@ -36,14 +36,43 @@ private def typeSpecKwds      : List String :=
 
 /-! ## State + monad -/
 
+/-- Typedefs assumed to be in scope from the standard headers we don't
+actually preprocess (`<stdint.h>`, `<stddef.h>`, `<stdbool.h>`,
+`<sys/types.h>`). Until we add a real `#include` resolver, these stand
+in so headers using fixed-width integer types still parse. -/
+def standardTypedefs : List String := [
+  -- stdint.h
+  "int8_t", "int16_t", "int32_t", "int64_t",
+  "uint8_t", "uint16_t", "uint32_t", "uint64_t",
+  "int_least8_t", "int_least16_t", "int_least32_t", "int_least64_t",
+  "uint_least8_t", "uint_least16_t", "uint_least32_t", "uint_least64_t",
+  "int_fast8_t", "int_fast16_t", "int_fast32_t", "int_fast64_t",
+  "uint_fast8_t", "uint_fast16_t", "uint_fast32_t", "uint_fast64_t",
+  "intptr_t", "uintptr_t", "intmax_t", "uintmax_t",
+  -- stddef.h
+  "size_t", "ssize_t", "ptrdiff_t", "wchar_t", "max_align_t",
+  -- sys/types.h (a small common subset)
+  "off_t", "pid_t", "uid_t", "gid_t", "mode_t", "time_t", "clock_t",
+  -- stdbool.h: `bool` is a macro for `_Bool`, but we accept it as
+  -- a typedef since some headers `#include` it and use plain `bool`.
+  "bool",
+  -- C11 native flavours
+  "char16_t", "char32_t"
+]
+
 structure ParserState where
   tokens   : Array Token
   pos      : Nat
   typedefs : Std.HashSet String
+  /-- Names of `#define` macros we've seen. When such a name appears
+  in a decl-spec context, we treat it as a transparent annotation and
+  skip it (covers `CLINGO_VISIBILITY_DEFAULT`, `CLINGO_DEPRECATED`, etc.). -/
+  macros   : Std.HashSet String
   decls    : Array CDecl
 
 def ParserState.mk' (tokens : Array Token) : ParserState :=
-  { tokens, pos := 0, typedefs := {}, decls := #[] }
+  let typedefs := standardTypedefs.foldl (·.insert ·) ({} : Std.HashSet String)
+  { tokens, pos := 0, typedefs, macros := {}, decls := #[] }
 
 abbrev ParserM := EStateM String ParserState
 
@@ -85,6 +114,9 @@ def expectIdentName : ParserM String := do
 
 def isKnownTypedef (s : String) : ParserM Bool := do
   return (← get).typedefs.contains s
+
+def isKnownMacro (s : String) : ParserM Bool := do
+  return (← get).macros.contains s
 
 end ParserM
 
@@ -133,6 +165,18 @@ private def isReservedDecl (s : String) : Bool :=
   storageKeywords.contains s
   || qualifierKeywords.contains s
   || typeSpecKwds.contains s
+
+/-- Consume tokens until the running paren-balance hits 0. Used for
+function-like macro annotations (`__attribute__((...))` shapes). The
+caller is expected to have already consumed the opening `(`, so the
+initial depth is 1. -/
+partial def skipBalancedParens (depth : Nat) : ParserM Unit := do
+  if depth = 0 then return
+  match (← ParserM.peek?) with
+  | none                  => ParserM.err "unbalanced `(`"
+  | some ⟨.punct "(", _⟩  => ParserM.advance; skipBalancedParens (depth + 1)
+  | some ⟨.punct ")", _⟩  => ParserM.advance; skipBalancedParens (depth - 1)
+  | _                     => ParserM.advance; skipBalancedParens depth
 
 /-! ## Declarator wrapping
 
@@ -223,6 +267,16 @@ where
           -- specifier if no base type has been set yet.
           if (← isKnownTypedef kw) && acc.base.isNone && acc.intWidth.isNone then
             advance; go { acc with base := some (.typedef kw) }
+          else if (← isKnownMacro kw) then
+            -- Annotation-like macro (e.g. CLINGO_VISIBILITY_DEFAULT,
+            -- CLINGO_DEPRECATED). Skip it. If it's followed by `(`...`)`
+            -- we also need to swallow that — handles the rare case
+            -- where the macro is function-like.
+            advance
+            if ← isPunct "(" then
+              advance
+              skipBalancedParens 1
+            go acc
           else
             return acc
       | _ => return acc
@@ -434,19 +488,44 @@ private def handlePPLine (raw : String) : ParserM Unit := do
     if !nameChars.isEmpty then
       let name := String.ofList nameChars
       let value := trimBoth (rest.drop name.length).toString
-      modify fun s => { s with decls := s.decls.push (.macroConst name value) }
+      modify fun s => { s with
+        macros := s.macros.insert name,
+        decls  := s.decls.push (.macroConst name value) }
 
-private partial def parseHeaderLoop : ParserM Unit := do
+/-- Iterate over top-level forms. `allowEndBrace` is set to `true` when
+we're inside an `extern "C" { ... }` block; in that case a `}` exits
+the loop (the caller consumes it). At the true top level, `}` is an
+error. -/
+private partial def parseHeaderLoop (allowEndBrace : Bool) : ParserM Unit := do
   match (← ParserM.peek?) with
-  | none => return
-  | some ⟨.eof, _⟩ => return
-  | some ⟨.ppLine raw, _⟩ => ParserM.advance; handlePPLine raw; parseHeaderLoop
-  | some ⟨.punct ";", _⟩  => ParserM.advance; parseHeaderLoop
-  | _ => parseTopDecl; parseHeaderLoop
+  | none                  => return
+  | some ⟨.eof, _⟩         => return
+  | some ⟨.punct "}", _⟩   =>
+    if allowEndBrace then return else err "unexpected `}`"
+  | some ⟨.ppLine raw, _⟩  =>
+    ParserM.advance; handlePPLine raw; parseHeaderLoop allowEndBrace
+  | some ⟨.punct ";", _⟩   =>
+    ParserM.advance; parseHeaderLoop allowEndBrace
+  | some ⟨.ident "extern", _⟩ =>
+    -- extern "C" { ... } — a C++ linkage spec we treat as transparent.
+    match (← ParserM.peek? 1) with
+    | some ⟨.strLit _, _⟩ =>
+      ParserM.advance; ParserM.advance  -- consume `extern` and the literal
+      if ← isPunct "{" then
+        ParserM.advance
+        parseHeaderLoop true
+        consumePunct "}"
+      -- else: it's a single linkage-specified declaration; fall through
+      -- to parseTopDecl with the rest of the line. We'll have already
+      -- consumed `extern "C"`, so the next token starts a normal decl.
+      parseHeaderLoop allowEndBrace
+    | _ =>
+      parseTopDecl; parseHeaderLoop allowEndBrace
+  | _ => parseTopDecl; parseHeaderLoop allowEndBrace
 
 /-- Parse an entire token stream into a `CHeader`. -/
 def parseHeader (tokens : Array Token) : Except String CHeader :=
-  match parseHeaderLoop.run (ParserState.mk' tokens) with
+  match (parseHeaderLoop false).run (ParserState.mk' tokens) with
   | .ok _ s    => .ok { decls := s.decls }
   | .error e _ => .error e
 
