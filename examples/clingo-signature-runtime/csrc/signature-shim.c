@@ -2,6 +2,28 @@
 #include "lean/lean.h"
 #include "clingo.h"
 
+static clingo_error_t lean_to_error(uint8_t cidx) {
+  switch (cidx) {
+    case 0: return clingo_error_success;
+    case 1: return clingo_error_runtime;
+    case 2: return clingo_error_logic;
+    case 3: return clingo_error_bad_alloc;
+    case 4: return clingo_error_unknown;
+    default: return (clingo_error_t)0;
+  }
+}
+
+static uint8_t error_to_lean(clingo_error_t v) {
+  switch (v) {
+    case clingo_error_success: return 0;
+    case clingo_error_runtime: return 1;
+    case clingo_error_logic: return 2;
+    case clingo_error_bad_alloc: return 3;
+    case clingo_error_unknown: return 4;
+    default: return 0;
+  }
+}
+
 LEAN_EXPORT lean_obj_res lean_clingo_signature_create(b_lean_obj_arg name, uint32_t arity, uint8_t positive) {
   clingo_signature_t signature;
   char const *name_c = lean_string_cstr(name);
@@ -46,4 +68,14 @@ LEAN_EXPORT uint8_t lean_clingo_signature_is_less_than(uint64_t a, uint64_t b) {
 
 LEAN_EXPORT size_t lean_clingo_signature_hash(uint64_t signature) {
   return (size_t)(clingo_signature_hash(signature));
+}
+
+LEAN_EXPORT lean_obj_res lean_clingo_error_code() {
+  return lean_io_result_mk_ok(lean_box(error_to_lean(clingo_error_code())));
+}
+
+LEAN_EXPORT lean_obj_res lean_clingo_error_string(uint8_t code) {
+  clingo_error_t code_c = lean_to_error(code);
+  char const *_ret = clingo_error_string(code_c);
+  return lean_mk_string(_ret == NULL ? "" : _ret);
 }

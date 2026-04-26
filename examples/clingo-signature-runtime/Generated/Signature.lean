@@ -5,6 +5,14 @@ namespace Generated.Signature
 def Signature := UInt64
   deriving Repr, Inhabited
 
+inductive Error where
+  | success
+  | runtime
+  | logic
+  | badAlloc
+  | unknown
+  deriving Repr, Inhabited
+
 @[extern "lean_clingo_signature_create"]
 opaque mk : @& String → UInt32 → Bool → IO (Except String Signature)
 
@@ -28,5 +36,11 @@ opaque blt : Signature → Signature → Bool
 
 @[extern "lean_clingo_signature_hash"]
 opaque hash : Signature → USize
+
+@[extern "lean_clingo_error_code"]
+opaque errorCode : IO Error
+
+@[extern "lean_clingo_error_string"]
+opaque errorString : Error → String
 
 end Generated.Signature

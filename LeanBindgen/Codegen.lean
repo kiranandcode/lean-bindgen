@@ -45,20 +45,52 @@ structure ResolvedType where
   leanType   : String
   shimParam  : String
   shimReturn : String
+  /-- True when the value crosses as a boxed `lean_object *`. -/
   isLeanObj  : Bool := false
+  /-- If set, the shim must pass each parameter of this type through
+  this helper to obtain the underlying C value before calling the
+  wrapped function (Lean → C). -/
+  shimUnbox  : Option String := none
+  /-- If set, the C return value of this type must be passed through
+  this helper to obtain the Lean object to return (C → Lean). -/
+  shimBox    : Option String := none
+  /-- C type name to use for a stack-local of this type when we need
+  to declare one (e.g. for an out-param). For boxed types this is
+  `lean_object *`; for scalars it's `int`/`uint64_t`/etc. -/
+  shimLocal  : String := ""
   deriving Inhabited
 
 /-- Constructor for a "scalar-like" mapping where shim param and
 return are the same C type, and the value is *not* a boxed Lean
 object. -/
 private def scalarRT (lean cTy : String) : ResolvedType :=
-  { leanType := lean, shimParam := cTy, shimReturn := cTy, isLeanObj := false }
+  { leanType := lean, shimParam := cTy, shimReturn := cTy,
+    isLeanObj := false, shimLocal := cTy }
 
 /-- Constructor for a Lean-object-typed mapping (e.g. `String`,
 opaque pointers): boxed across the FFI. -/
 private def boxedRT (lean : String) : ResolvedType :=
   { leanType := lean, shimParam := "b_lean_obj_arg",
-    shimReturn := "lean_obj_res", isLeanObj := true }
+    shimReturn := "lean_obj_res", isLeanObj := true,
+    shimLocal := "lean_object *" }
+
+/-- Build the conversion helper names for an enum mapping. -/
+private def enumHelpers (lean : String) : String × String :=
+  let snake := lean.foldl (init := "") fun acc c =>
+    if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
+    else acc ++ String.singleton c.toLower
+  (s!"lean_to_{snake}", s!"{snake}_to_lean")
+
+/-- Constructor for a Lean inductive backed by a C int (typedef +
+enum). Lean compiles all-nullary inductives to a *raw* `uint8_t` (the
+constructor index) at the FFI boundary, so we cross as a scalar; the
+per-enum helpers translate between cidx and the C enum value. -/
+private def enumRT (leanName cTypedef : String) : ResolvedType :=
+  let (toC, toLean) := enumHelpers leanName
+  { leanType := leanName, shimParam := "uint8_t",
+    shimReturn := "uint8_t", isLeanObj := false,
+    shimLocal := cTypedef,
+    shimUnbox := some toC, shimBox := some toLean }
 
 /-- Built-in primitive C → Lean mappings, applied before consulting
 the user's `Bindings`. -/
@@ -113,8 +145,9 @@ partial def resolveType
     match anno[name]? with
     | some a =>
       match a.mapping with
-      | .scalarNewtype k => .ok (scalarRT a.lean k.toC)
-      | .opaquePointer   => .ok (boxedRT a.lean)
+      | .scalarNewtype k     => .ok (scalarRT a.lean k.toC)
+      | .opaquePointer       => .ok (boxedRT a.lean)
+      | .inductiveEnum _     => .ok (enumRT a.lean name)
     | none =>
       match stdintMap[name]? with
       | some r => .ok r
@@ -129,8 +162,13 @@ partial def resolveType
       match a.mapping with
       | .scalarNewtype k =>
         .ok { leanType := a.lean, shimParam := k.toC ++ " *",
-              shimReturn := k.toC ++ " *", isLeanObj := false }
+              shimReturn := k.toC ++ " *", isLeanObj := false,
+              shimLocal := k.toC }
       | .opaquePointer   => .ok (boxedRT a.lean)
+      | .inductiveEnum _ =>
+        .ok { leanType := a.lean, shimParam := name ++ " *",
+              shimReturn := name ++ " *", isLeanObj := false,
+              shimLocal := name }
     | none => .error s!"unmapped pointer-to-typedef `{name}`"
   | _ =>
     match primitiveMap ty with
@@ -220,6 +258,10 @@ private def emitTypeDecl (ta : TypeAnno) : String :=
     s!"def {ta.lean} := {k.toLean}\n  deriving Repr, Inhabited"
   | .opaquePointer =>
     s!"opaque {ta.lean} : Type"
+  | .inductiveEnum em =>
+    let ctors := "\n".intercalate
+      (em.variants.toList.map (fun (_, leanV) => s!"  | {leanV}"))
+    s!"inductive {ta.lean} where\n{ctors}\n  deriving Repr, Inhabited"
 
 /-- Generate the entire Lean module text. -/
 def emitLeanModule (b : Bindings) (h : CHeader) : Except String String := do
@@ -262,46 +304,71 @@ private def shimParamList
     let baseName := (params[i]?.bind (·.name)).getD s!"arg{i}"
     s!"{r.shimParam} {baseName}"
 
+/-- Build the C-side argument expression for one shim parameter.
+For most types this is just the parameter name; `String` parameters
+are unboxed via `lean_string_cstr` into a local; enum-typed
+parameters are passed through the per-enum helper. Returns the
+prelude statements (in declaration order) and the expression to use
+in the call. -/
+private def renderParamPass (r : ResolvedType) (nm : String)
+    : Array String × String :=
+  if r.leanType = "String" then
+    (#[s!"  char const *{nm}_c = lean_string_cstr({nm});"], s!"{nm}_c")
+  else if let some unbox := r.shimUnbox then
+    (#[s!"  {r.shimLocal} {nm}_c = {unbox}({nm});"], s!"{nm}_c")
+  else
+    (#[], nm)
+
+/-- Render the C statement(s) that produce the shim's return value
+from the result of the C call. -/
+private def renderReturn (retRes : ResolvedType) (callExpr : String) (inIO : Bool)
+    : String :=
+  let raw : String :=
+    match retRes.leanType with
+    | "Unit"   => s!"{callExpr};\n  return lean_box(0);"
+    | "String" =>
+      s!"char const *_ret = {callExpr};\n  return lean_mk_string(_ret == NULL ? \"\" : _ret);"
+    | "Bool"   => s!"return {callExpr} ? 1 : 0;"
+    | _ =>
+      match retRes.shimBox with
+      | some boxFn => s!"return {boxFn}({callExpr});"
+      | none       => s!"return ({retRes.shimReturn})({callExpr});"
+  if inIO then
+    -- Wrap in lean_io_result_mk_ok. Different return shapes need
+    -- different surface — Unit is `lean_box(0)`, String is the result
+    -- of `lean_mk_string`, plain scalars use `lean_box_uint64`, and
+    -- enum-typed returns are first run through `shimBox` (which gives
+    -- a uint8_t cidx) and then `lean_box`'d.
+    match retRes.leanType with
+    | "Unit"   => s!"{callExpr};\n  return lean_io_result_mk_ok(lean_box(0));"
+    | "String" => s!"char const *_ret = {callExpr};\n  return lean_io_result_mk_ok(lean_mk_string(_ret == NULL ? \"\" : _ret));"
+    | "Bool"   => s!"return lean_io_result_mk_ok(lean_box({callExpr} ? 1 : 0));"
+    | _ =>
+      match retRes.shimBox with
+      | some boxFn => s!"return lean_io_result_mk_ok(lean_box({boxFn}({callExpr})));"
+      | none       => s!"return lean_io_result_mk_ok(lean_box_uint64((uint64_t)({callExpr})));"
+  else
+    raw
+
 /-- Emit the body of a "direct" shim: marshal each parameter, call the
-underlying C function, marshal the result. Currently this only handles
-parameters that pass through directly (scalars, plus `String` for
-`char const *`). -/
+underlying C function, marshal the result. -/
 private def directShimBody
     (decl : CDecl) (resolved : Array ResolvedType)
     (retRes : ResolvedType) (cName : String) (inIO : Bool)
     : String := Id.run do
   let .function _name _ret params _variadic := decl
     | return "/* not a function */"
-  -- Per-param unboxing.
   let mut prelude : Array String := #[]
   let mut callArgs : Array String := #[]
   for h : i in [:resolved.size] do
     let r := resolved[i]
     let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
-    if r.leanType = "String" then
-      prelude := prelude.push s!"  char const *{nm}_c = lean_string_cstr({nm});"
-      callArgs := callArgs.push s!"{nm}_c"
-    else
-      callArgs := callArgs.push nm
-  let call := s!"{cName}({", ".intercalate callArgs.toList})"
-  let body := match retRes.leanType with
-    | "Unit"   =>
-      s!"{call};\n  return lean_io_result_mk_ok(lean_box(0));"
-    | "String" =>
-      let retVar := "_ret"
-      s!"char const *{retVar} = {call};\n  return lean_mk_string({retVar} == NULL ? \"\" : {retVar});"
-    | "Bool" =>
-      s!"return {call} ? 1 : 0;"
-    | _ =>
-      s!"return ({retRes.shimReturn})({call});"
+    let (pre, expr) := renderParamPass r nm
+    prelude := prelude ++ pre
+    callArgs := callArgs.push expr
+  let callExpr := s!"{cName}({", ".intercalate callArgs.toList})"
   let preludeStr := if prelude.isEmpty then "" else "\n".intercalate prelude.toList ++ "\n"
-  -- Wrap the return in IO if requested.
-  let wrappedBody :=
-    if inIO && retRes.leanType ≠ "String" && retRes.leanType ≠ "Unit" then
-      s!"  return lean_io_result_mk_ok(lean_box_uint64((uint64_t)({call})));"
-    else
-      "  " ++ body
-  preludeStr ++ wrappedBody
+  preludeStr ++ "  " ++ renderReturn retRes callExpr inIO
 
 /-- Emit one shim function for an annotation. -/
 private def emitShimFunction
@@ -375,6 +442,57 @@ private def emitShimFunction
     else
       .error s!"`{fa.cName}` has only {params.size} params but outParamIdx is {outIdx}"
 
+/-- Walk the parsed header for an enum decl whose tag matches and
+return its variants. -/
+private def lookupEnumTag (h : CHeader) (tag : String) : Option (Array (String × Option Int)) :=
+  h.decls.findSome? fun
+    | .enumDef (some t) variants => if t = tag then some variants else none
+    | _ => none
+
+/-- Emit the pair of static helper functions converting between a
+Lean inductive-encoded enum and the underlying C int. -/
+private def emitEnumHelpers
+    (h : CHeader) (ta : TypeAnno) (em : EnumMapping)
+    : Except String String := do
+  let some headerVariants := lookupEnumTag h em.enumTag
+    | .error s!"enum tag `{em.enumTag}` not found in header"
+  -- Build a name → C-int map from the parsed header.
+  let mut valueByName : Std.HashMap String Int := {}
+  let mut running : Int := 0
+  for (n, v?) in headerVariants do
+    let v := v?.getD running
+    valueByName := valueByName.insert n v
+    running := v + 1
+  -- Sanity-check the user's variant list.
+  let mut pairs : Array (String × String × Int) := #[]
+  for (cV, leanV) in em.variants do
+    let some cVal := valueByName[cV]?
+      | .error s!"variant `{cV}` not found in enum `{em.enumTag}`"
+    pairs := pairs.push (cV, leanV, cVal)
+  let (toC, toLean) := enumHelpers ta.lean
+  let toCcases := "\n".intercalate
+    (pairs.toList.zipIdx.map fun ((cV, _, _), i) =>
+      s!"    case {i}: return {cV};")
+  let toLeanCases := "\n".intercalate
+    (pairs.toList.zipIdx.map fun ((cV, _, _), i) =>
+      s!"    case {cV}: return lean_box({i});")
+  let toCDef :=
+    s!"static {ta.cName} {toC}(uint8_t cidx) \{\n" ++
+    s!"  switch (cidx) \{\n" ++
+    toCcases ++ "\n" ++
+    s!"    default: return ({ta.cName})0;\n" ++
+    "  }\n}"
+  let toLeanCases' := "\n".intercalate
+    (pairs.toList.zipIdx.map fun ((cV, _, _), i) =>
+      s!"    case {cV}: return {i};")
+  let toLeanDef :=
+    s!"static uint8_t {toLean}({ta.cName} v) \{\n" ++
+    s!"  switch (v) \{\n" ++
+    toLeanCases' ++ "\n" ++
+    s!"    default: return 0;\n" ++
+    "  }\n}"
+  return toCDef ++ "\n\n" ++ toLeanDef
+
 /-- Generate the entire shim source text. -/
 def emitShim (b : Bindings) (h : CHeader) : Except String String := do
   let typeAnnoMap : Std.HashMap String TypeAnno :=
@@ -385,11 +503,19 @@ def emitShim (b : Bindings) (h : CHeader) : Except String String := do
       | .function name .. => m.insert name d
       | .typedef name _   => m.insert name d
       | _ => m) ({} : Std.HashMap _ _)
+  -- Emit conversion helpers once per enum-typed annotation.
+  let mut helpers : Array String := #[]
+  for ta in b.types do
+    match ta.mapping with
+    | .inductiveEnum em => helpers := helpers.push (← emitEnumHelpers h ta em)
+    | _ => pure ()
+  let helperBlock :=
+    if helpers.isEmpty then "" else "\n\n".intercalate helpers.toList ++ "\n\n"
   let header := s!"// Auto-generated by lean-bindgen. Do not edit.\n#include \"lean/lean.h\"\n#include \"{b.headerPath.splitOn "/" |>.getLast!}\"\n\n"
   let mut block := #[]
   for fa in b.functions do
     block := block.push (← emitShimFunction b typeAnnoMap declMap fa)
-  return header ++ "\n\n".intercalate block.toList ++ "\n"
+  return header ++ helperBlock ++ "\n\n".intercalate block.toList ++ "\n"
 
 end Codegen
 end LeanBindgen

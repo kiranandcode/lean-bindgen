@@ -2,9 +2,9 @@ import LeanBindgen.Annotation
 
 open LeanBindgen
 
-/-! Annotation file for the `clingo_signature_*` slice of clingo.h.
-This is the smallest end-to-end target — one scalar typedef, eight
-functions, two function styles. -/
+/-! Annotation file for a slice of clingo.h. Originally the
+`clingo_signature_*` set; extended to include `clingo_error` to
+exercise the inductive-enum codegen path. -/
 
 def clingoSignatureBindings : Bindings := {
   headerPath := "reference/cleango/bindings/clingo.h"
@@ -15,20 +15,39 @@ def clingoSignatureBindings : Bindings := {
   leanImports := #[]
   types := #[
     { cName := "clingo_signature_t", lean := "Signature",
-      mapping := .scalarNewtype .uint64 }
+      mapping := .scalarNewtype .uint64 },
+    -- The C `enum clingo_error` plus its `int`-typedef pair becomes
+    -- a Lean inductive. `cName` here is the typedef (`clingo_error_t`)
+    -- — that's what appears in C function signatures.
+    { cName := "clingo_error_t", lean := "Error",
+      mapping := .inductiveEnum {
+        enumTag  := "clingo_error"
+        variants := #[
+          ("clingo_error_success",   "success"),
+          ("clingo_error_runtime",   "runtime"),
+          ("clingo_error_logic",     "logic"),
+          ("clingo_error_bad_alloc", "badAlloc"),
+          ("clingo_error_unknown",   "unknown")
+        ]
+      } }
   ]
   functions := #[
     -- The constructor: `bool clingo_signature_create(name, arity, positive, *out)`.
     { cName := "clingo_signature_create"
-      lean  := "Signature.mk"
+      lean  := "mk"
       style := .outParamBoolStatus 3 "clingo_error_message" },
     -- Direct-style accessors.
-    { cName := "clingo_signature_name",          lean := "Signature.name" },
-    { cName := "clingo_signature_arity",         lean := "Signature.arity" },
-    { cName := "clingo_signature_is_positive",   lean := "Signature.isPositive" },
-    { cName := "clingo_signature_is_negative",   lean := "Signature.isNegative" },
-    { cName := "clingo_signature_is_equal_to",   lean := "Signature.beq" },
-    { cName := "clingo_signature_is_less_than",  lean := "Signature.blt" },
-    { cName := "clingo_signature_hash",          lean := "Signature.hash" }
+    { cName := "clingo_signature_name",         lean := "name" },
+    { cName := "clingo_signature_arity",        lean := "arity" },
+    { cName := "clingo_signature_is_positive",  lean := "isPositive" },
+    { cName := "clingo_signature_is_negative",  lean := "isNegative" },
+    { cName := "clingo_signature_is_equal_to",  lean := "beq" },
+    { cName := "clingo_signature_is_less_than", lean := "blt" },
+    { cName := "clingo_signature_hash",         lean := "hash" },
+    -- Enum-typed: `errorCode` returns the thread-local error code
+    -- (impure — `IO Error`), `errorString` is a pure mapping from a
+    -- code to its string name.
+    { cName := "clingo_error_code",   lean := "errorCode",   inIO := true },
+    { cName := "clingo_error_string", lean := "errorString" }
   ]
 }

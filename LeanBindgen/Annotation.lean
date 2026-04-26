@@ -78,10 +78,33 @@ def ScalarTarget.toC : ScalarTarget → String
   | .usize  => "size_t"
   | .isize  => "ptrdiff_t"
 
+/-- How a C enum (and its accompanying integer typedef, if any) maps
+to a Lean inductive. The `enumTag` names the underlying C enum so the
+codegen can look up each variant's integer value from the parsed
+header. The `variants` array names the Lean constructors and pairs
+each with its source-of-truth C variant. -/
+structure EnumMapping where
+  /-- The tag of the C `enum` declaration (without the `enum ` prefix),
+  e.g. `clingo_error`, `clingo_symbol_type`. -/
+  enumTag  : String
+  /-- `(cVariant, leanVariant)` for each constructor. -/
+  variants : Array (String × String)
+  deriving Inhabited
+
 /-- How a C type is presented in Lean. -/
 inductive TypeMapping
+  /-- Wrap an integer C typedef as a fresh Lean `def`. -/
   | scalarNewtype (k : ScalarTarget)
+  /-- An incomplete C struct accessed only by pointer becomes
+  `opaque T : Type` plus a `lean_external_class` registration on the
+  shim side. (External-class registration is not yet emitted by the
+  codegen MVP.) -/
   | opaquePointer
+  /-- A C enum (or `int`-typedef paired with one) becomes a Lean
+  `inductive` with one nullary constructor per variant. The codegen
+  emits a pair of conversion helpers in the shim that translate
+  between the C integer value and Lean's constructor index. -/
+  | inductiveEnum (mapping : EnumMapping)
   deriving Inhabited
 
 structure TypeAnno where

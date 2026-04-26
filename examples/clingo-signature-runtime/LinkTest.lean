@@ -46,3 +46,18 @@ def main : IO Unit := do
     | .error e => IO.eprintln s!"  ✗ negative mk failed: {e}"
   | .error e =>
     IO.eprintln s!"  ✗ mk failed: {e}"
+  -- Exercise the inductive-enum path: errorCode reads the
+  -- thread-local error state (we expect `success` since prior calls
+  -- succeeded), and errorString round-trips an Error variant back to
+  -- a string via libclingo's lookup table.
+  IO.println "\nlean-bindgen runtime check: clingo_error"
+  let code ← errorCode
+  IO.println s!"  · errorCode = {repr code}"
+  match code with
+  | .success => IO.println "  ✓ errorCode = success"
+  | _        => IO.eprintln s!"  ✗ expected success, got {repr code}"
+  -- errorString takes an Error, returns its string name.
+  assertEq "errorString success"  (errorString .success)  "success"
+  assertEq "errorString runtime"  (errorString .runtime)  "runtime error"
+  assertEq "errorString badAlloc" (errorString .badAlloc) "bad allocation"
+  assertEq "errorString unknown"  (errorString .unknown)  "unknown error"
