@@ -20,3 +20,10 @@ lean_exe «test-parser» where
 
 lean_exe «soak» where
   root := `test.Soak
+
+lean_lib «Examples» where
+  srcDir := "examples"
+  roots  := #[`Examples]
+
+lean_exe «test-codegen» where
+  root := `test.CodegenTest

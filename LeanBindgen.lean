@@ -7,6 +7,8 @@ import LeanBindgen.C.Ast
 import LeanBindgen.C.Pretty
 import LeanBindgen.C.Token
 import LeanBindgen.C.Parser
+import LeanBindgen.Annotation
+import LeanBindgen.Codegen
 
 namespace LeanBindgen
 
