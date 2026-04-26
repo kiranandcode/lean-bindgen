@@ -3,6 +3,8 @@
 -- bindings in `reference/cleango/`.
 
 import LeanBindgen.Lake
+import LeanBindgen.C.Ast
+import LeanBindgen.C.Pretty
 
 namespace LeanBindgen
 

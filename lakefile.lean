@@ -8,3 +8,6 @@ lean_lib LeanBindgen where
 
 lean_exe «lean-bindgen» where
   root := `Main
+
+lean_exe «test-pretty» where
+  root := `test.PrettyTest
