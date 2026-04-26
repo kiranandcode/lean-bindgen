@@ -11,3 +11,6 @@ lean_exe «lean-bindgen» where
 
 lean_exe «test-pretty» where
   root := `test.PrettyTest
+
+lean_exe «test-token» where
+  root := `test.TokenTest
