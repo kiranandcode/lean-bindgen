@@ -6,6 +6,7 @@ import LeanBindgen.Lake
 import LeanBindgen.C.Ast
 import LeanBindgen.C.Pretty
 import LeanBindgen.C.Token
+import LeanBindgen.C.Parser
 
 namespace LeanBindgen
 

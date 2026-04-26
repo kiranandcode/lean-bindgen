@@ -14,3 +14,6 @@ lean_exe «test-pretty» where
 
 lean_exe «test-token» where
   root := `test.TokenTest
+
+lean_exe «test-parser» where
+  root := `test.ParserTest
