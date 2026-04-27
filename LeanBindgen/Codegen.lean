@@ -52,6 +52,10 @@ inductive ParamMarshal
   /-- Treat as a Lean external object: extract the payload pointer via
   `lean_get_external_data` and cast to the given C type. -/
   | externalData (cType : String)
+  /-- Build a C struct from a Lean ctor via the named helper. The
+  `byPointer` flag controls whether the call site passes the local
+  by address (`&`) or by value. -/
+  | fromLeanStruct (helperFn : String) (cType : String) (byPointer : Bool)
   deriving Inhabited
 
 /-- How a C return value of this resolved type gets transformed in
@@ -67,6 +71,8 @@ inductive ReturnMarshal
   /-- Wrap a raw C pointer as a Lean external object using the named
   class-getter function. -/
   | externalAlloc (classGetter : String)
+  /-- Box a C struct value into a Lean ctor via the named helper. -/
+  | toLeanStruct (helperFn : String)
   deriving Inhabited
 
 /-- A resolved Lean target for a C type. -/
@@ -82,6 +88,15 @@ structure ResolvedType where
   cLocalType : String := ""
   /-- True when the value crosses as a boxed `lean_object *`. -/
   isLeanObj  : Bool := false
+  /-- Number of bytes a scalar of this type occupies in a Lean ctor's
+  scalar payload. Zero for boxed types (they don't contribute to the
+  scalar payload). -/
+  cByteSize  : Nat := 0
+  /-- The `lean_ctor_*_<suffix>` family used for this type when
+  reading/writing it as a struct field's scalar payload. Examples:
+  `"uint32"`, `"uint64"`, `"usize"`, `"uint8"`, `"float"`, `"float32"`.
+  Empty for boxed types (use `lean_ctor_get`/`lean_ctor_set`). -/
+  ctorScalar : String := ""
   paramMarshal  : ParamMarshal := .passthrough
   returnMarshal : ReturnMarshal := .passthrough
   deriving Inhabited
@@ -89,9 +104,11 @@ structure ResolvedType where
 /-- Constructor for a "scalar-like" mapping where shim param and
 return are the same C type, and the value is *not* a boxed Lean
 object. -/
-private def scalarRT (lean cTy : String) : ResolvedType :=
+private def scalarRT (lean cTy : String)
+    (byteSize : Nat) (ctorScalar : String) : ResolvedType :=
   { leanType := lean, shimParam := cTy, shimReturn := cTy,
-    cLocalType := cTy }
+    cLocalType := cTy,
+    cByteSize := byteSize, ctorScalar := ctorScalar }
 
 /-- Constructor for the Lean `String` mapping (boxed, marshalled via
 `lean_string_cstr` / `lean_mk_string`). -/
@@ -117,12 +134,42 @@ private def enumRT (leanName cTypedef : String) : ResolvedType :=
     shimReturn := "uint8_t", cLocalType := cTypedef,
     paramMarshal := .enumHelper toC, returnMarshal := .enumHelper toLean }
 
-/-- The class-getter name for an opaque-pointer mapping. -/
-private def externalClassGetter (lean : String) : String :=
-  let snake := lean.foldl (init := "") fun acc c =>
+/-- Convert a CamelCase Lean name to snake_case (used for shim helper
+names). -/
+private def toSnake (s : String) : String :=
+  s.foldl (init := "") fun acc c =>
     if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
     else acc ++ String.singleton c.toLower
-  s!"get_{snake}_class"
+
+/-- The class-getter name for an opaque-pointer mapping. -/
+private def externalClassGetter (lean : String) : String :=
+  s!"get_{toSnake lean}_class"
+
+/-- The to/from-Lean helper names for a struct mapping. -/
+private def structHelperNames (lean : String) : String × String :=
+  let snake := toSnake lean
+  (s!"lean_to_{snake}", s!"{snake}_to_lean")
+
+/-- Constructor for a Lean structure mapping when the C function uses
+the value by-pointer (typical: `T const *` parameter, or `T *out`
+out-parameter). -/
+private def structByPtrRT (leanName cTypedef : String) : ResolvedType :=
+  let (toC, toLean) := structHelperNames leanName
+  { leanType := leanName, shimParam := "b_lean_obj_arg",
+    shimReturn := "lean_obj_res", cLocalType := cTypedef,
+    isLeanObj := true,
+    paramMarshal  := .fromLeanStruct toC cTypedef true,
+    returnMarshal := .toLeanStruct toLean }
+
+/-- Constructor for a Lean structure mapping when the C function uses
+the value by-value. -/
+private def structByValRT (leanName cTypedef : String) : ResolvedType :=
+  let (toC, toLean) := structHelperNames leanName
+  { leanType := leanName, shimParam := "b_lean_obj_arg",
+    shimReturn := "lean_obj_res", cLocalType := cTypedef,
+    isLeanObj := true,
+    paramMarshal  := .fromLeanStruct toC cTypedef false,
+    returnMarshal := .toLeanStruct toLean }
 
 /-- Constructor for an opaque-pointer mapping. The C-side value is a
 `<typedef> *` wrapped as a Lean external object; the shim extracts via
@@ -143,37 +190,37 @@ private def opaqueRT (leanName cTypedef : String) : ResolvedType :=
 the user's `Bindings`. -/
 private def primitiveMap (ty : CType) : Option ResolvedType :=
   match ty with
-  | .void                       => some (scalarRT "Unit" "void")
-  | .scalar .bool _             => some (scalarRT "Bool" "uint8_t")
-  | .scalar .float _            => some (scalarRT "Float32" "float")
-  | .scalar .double _           => some (scalarRT "Float" "double")
-  | .scalar .char _             => some (scalarRT "UInt8" "uint8_t")
-  | .scalar .short .signed      => some (scalarRT "Int16" "int16_t")
-  | .scalar .short _            => some (scalarRT "UInt16" "uint16_t")
-  | .scalar .int .signed        => some (scalarRT "Int32" "int32_t")
-  | .scalar .int _              => some (scalarRT "UInt32" "uint32_t")
-  | .scalar .long .signed       => some (scalarRT "Int64" "int64_t")
-  | .scalar .long _             => some (scalarRT "UInt64" "uint64_t")
-  | .scalar .longLong .signed   => some (scalarRT "Int64" "int64_t")
-  | .scalar .longLong _         => some (scalarRT "UInt64" "uint64_t")
+  | .void                       => some (scalarRT "Unit" "void" 0 "")
+  | .scalar .bool _             => some (scalarRT "Bool" "uint8_t" 1 "uint8")
+  | .scalar .float _            => some (scalarRT "Float32" "float" 4 "float32")
+  | .scalar .double _           => some (scalarRT "Float" "double" 8 "float")
+  | .scalar .char _             => some (scalarRT "UInt8" "uint8_t" 1 "uint8")
+  | .scalar .short .signed      => some (scalarRT "Int16" "int16_t" 2 "uint16")
+  | .scalar .short _            => some (scalarRT "UInt16" "uint16_t" 2 "uint16")
+  | .scalar .int .signed        => some (scalarRT "Int32" "int32_t" 4 "uint32")
+  | .scalar .int _              => some (scalarRT "UInt32" "uint32_t" 4 "uint32")
+  | .scalar .long .signed       => some (scalarRT "Int64" "int64_t" 8 "uint64")
+  | .scalar .long _             => some (scalarRT "UInt64" "uint64_t" 8 "uint64")
+  | .scalar .longLong .signed   => some (scalarRT "Int64" "int64_t" 8 "uint64")
+  | .scalar .longLong _         => some (scalarRT "UInt64" "uint64_t" 8 "uint64")
   | _ => none
 
 /-- The fixed-width stdint typedef → Lean scalar map. Only consulted
 for typedef references that aren't resolved by the user's `Bindings`. -/
 private def stdintMap : Std.HashMap String ResolvedType :=
   ({} : Std.HashMap String ResolvedType)
-    |>.insert "int8_t"   (scalarRT "Int8" "int8_t")
-    |>.insert "uint8_t"  (scalarRT "UInt8" "uint8_t")
-    |>.insert "int16_t"  (scalarRT "Int16" "int16_t")
-    |>.insert "uint16_t" (scalarRT "UInt16" "uint16_t")
-    |>.insert "int32_t"  (scalarRT "Int32" "int32_t")
-    |>.insert "uint32_t" (scalarRT "UInt32" "uint32_t")
-    |>.insert "int64_t"  (scalarRT "Int64" "int64_t")
-    |>.insert "uint64_t" (scalarRT "UInt64" "uint64_t")
-    |>.insert "size_t"   (scalarRT "USize" "size_t")
-    |>.insert "ssize_t"  (scalarRT "ISize" "ssize_t")
-    |>.insert "ptrdiff_t" (scalarRT "ISize" "ptrdiff_t")
-    |>.insert "bool"     (scalarRT "Bool" "uint8_t")
+    |>.insert "int8_t"   (scalarRT "Int8"   "int8_t"   1 "uint8")
+    |>.insert "uint8_t"  (scalarRT "UInt8"  "uint8_t"  1 "uint8")
+    |>.insert "int16_t"  (scalarRT "Int16"  "int16_t"  2 "uint16")
+    |>.insert "uint16_t" (scalarRT "UInt16" "uint16_t" 2 "uint16")
+    |>.insert "int32_t"  (scalarRT "Int32"  "int32_t"  4 "uint32")
+    |>.insert "uint32_t" (scalarRT "UInt32" "uint32_t" 4 "uint32")
+    |>.insert "int64_t"  (scalarRT "Int64"  "int64_t"  8 "uint64")
+    |>.insert "uint64_t" (scalarRT "UInt64" "uint64_t" 8 "uint64")
+    |>.insert "size_t"   (scalarRT "USize"  "size_t"   8 "usize")
+    |>.insert "ssize_t"  (scalarRT "ISize"  "ssize_t"  8 "usize")
+    |>.insert "ptrdiff_t" (scalarRT "ISize" "ptrdiff_t" 8 "usize")
+    |>.insert "bool"     (scalarRT "Bool"   "uint8_t"  1 "uint8")
 
 /-- Resolve a C type against the user's bindings. Returns an error
 message if no mapping exists. -/
@@ -192,9 +239,10 @@ partial def resolveType
     match anno[name]? with
     | some a =>
       match a.mapping with
-      | .scalarNewtype k     => .ok (scalarRT a.lean k.toC)
-      | .opaquePointer _     => .ok (opaqueRT a.lean name)
-      | .inductiveEnum _     => .ok (enumRT a.lean name)
+      | .scalarNewtype k => .ok (scalarRT a.lean k.toC k.byteSize k.ctorScalar)
+      | .opaquePointer _ => .ok (opaqueRT a.lean name)
+      | .inductiveEnum _ => .ok (enumRT a.lean name)
+      | .structRecord _  => .ok (structByValRT a.lean name)
     | none =>
       match stdintMap[name]? with
       | some r => .ok r
@@ -214,11 +262,46 @@ partial def resolveType
       | .inductiveEnum _ =>
         .ok { leanType := a.lean, shimParam := name ++ " *",
               shimReturn := name ++ " *", cLocalType := name }
+      | .structRecord _ => .ok (structByPtrRT a.lean name)
     | none => .error s!"unmapped pointer-to-typedef `{name}`"
+  -- Pointer to const-typedef — common shape for struct parameters
+  -- like `clingo_part_t const *`. The outer `const` form is already
+  -- handled by the qualifier-stripping arm above.
+  | .pointer (.const (.typedef name)) =>
+    resolveType anno (.pointer (.typedef name))
   | _ =>
     match primitiveMap ty with
     | some r => .ok r
     | none   => .error s!"unmapped C type: {ty.spec}"
+
+/-! ## Header lookups + struct field resolution
+
+These live above the Lean module emitter because the type emitter for
+struct mappings needs to resolve each field's Lean type from the
+parsed header. -/
+
+private def lookupEnumTag (h : CHeader) (tag : String) : Option (Array (String × Option Int)) :=
+  h.decls.findSome? fun
+    | .enumDef (some t) variants => if t = tag then some variants else none
+    | _ => none
+
+private def lookupStructTag (h : CHeader) (tag : String) : Option (Array CField) :=
+  h.decls.findSome? fun
+    | .structDef (some t) fields => if t = tag then some fields else none
+    | _ => none
+
+private def resolveStructFields
+    (h : CHeader) (anno : Std.HashMap String TypeAnno) (sm : StructMapping)
+    : Except String (Array (String × String × ResolvedType)) := do
+  let some headerFields := lookupStructTag h sm.cStructTag
+    | .error s!"struct tag `{sm.cStructTag}` not found in header"
+  let mut out : Array (String × String × ResolvedType) := #[]
+  for (cField, leanField) in sm.fields do
+    let some hf := headerFields.find? (·.name = cField)
+      | .error s!"field `{cField}` not found in struct `{sm.cStructTag}`"
+    let r ← resolveType anno hf.type
+    out := out.push (cField, leanField, r)
+  return out
 
 /-! ## Lean module emitter -/
 
@@ -296,8 +379,11 @@ private def emitFunctionDecl
   let leanShortName := fa.lean.splitOn "." |>.getLast!
   return s!"@[extern \"{externSym}\"]\nopaque {leanShortName} : {sig}"
 
-/-- Emit a single type declaration. -/
-private def emitTypeDecl (ta : TypeAnno) : String :=
+/-- Emit a single type declaration. The `fieldTypes` map provides the
+already-resolved Lean type expression for each (struct's) Lean field
+name; only used by the `.structRecord` arm. -/
+private def emitTypeDecl
+    (ta : TypeAnno) (fieldTypes : Std.HashMap String String := {}) : String :=
   match ta.mapping with
   | .scalarNewtype k =>
     s!"def {ta.lean} := {k.toLean}\n  deriving Repr, Inhabited"
@@ -307,6 +393,12 @@ private def emitTypeDecl (ta : TypeAnno) : String :=
     let ctors := "\n".intercalate
       (em.variants.toList.map (fun (_, leanV) => s!"  | {leanV}"))
     s!"inductive {ta.lean} where\n{ctors}\n  deriving Repr, Inhabited"
+  | .structRecord sm =>
+    let fields := "\n".intercalate
+      (sm.fields.toList.map (fun (_, leanF) =>
+        let ty := fieldTypes[leanF]?.getD "Unit"
+        s!"  {leanF} : {ty}"))
+    s!"structure {ta.lean} where\n{fields}\n  deriving Repr, Inhabited"
 
 /-- Generate the entire Lean module text. -/
 def emitLeanModule (b : Bindings) (h : CHeader) : Except String String := do
@@ -325,9 +417,20 @@ def emitLeanModule (b : Bindings) (h : CHeader) : Except String String := do
     "\n".intercalate (b.leanImports.toList.map (s!"import {·}"))
   let nsOpen :=
     s!"\nnamespace {b.leanModule}\n"
-  -- Type defs
-  let typeBlock :=
-    "\n\n".intercalate (b.types.toList.map emitTypeDecl)
+  -- Type defs. For struct mappings we need each field's resolved
+  -- Lean type to render the structure; build a per-field type map
+  -- here so emitTypeDecl can look it up.
+  let mut typeBlocks : Array String := #[]
+  for ta in b.types do
+    match ta.mapping with
+    | .structRecord sm =>
+      let fields ← resolveStructFields h typeAnnoMap sm
+      let mut m : Std.HashMap String String := {}
+      for (_, leanF, r) in fields do
+        m := m.insert leanF r.leanType
+      typeBlocks := typeBlocks.push (emitTypeDecl ta m)
+    | _ => typeBlocks := typeBlocks.push (emitTypeDecl ta)
+  let typeBlock := "\n\n".intercalate typeBlocks.toList
   -- Function decls
   let mut fnBlock := #[]
   for fa in b.functions do
@@ -362,6 +465,9 @@ private def renderParamPass (r : ResolvedType) (nm : String)
       (#[s!"  {r.cLocalType} {nm}_c = {fn}({nm});"], s!"{nm}_c")
   | .externalData cTy       =>
       (#[s!"  {cTy} {nm}_c = ({cTy}) lean_get_external_data({nm});"], s!"{nm}_c")
+  | .fromLeanStruct fn cTy byPtr =>
+      let prelude := #[s!"  {cTy} {nm}_c = {fn}({nm});"]
+      (prelude, if byPtr then s!"&{nm}_c" else s!"{nm}_c")
 
 /-- The C expression that turns the C-call result into a Lean object
 (prior to any IO wrapping). For non-IO returns whose Lean type *isn't*
@@ -379,6 +485,8 @@ private def renderReturn (retRes : ResolvedType) (callExpr : String) (inIO : Boo
       s!"return {fn}({callExpr});"
     | .externalAlloc getter =>
       s!"return lean_alloc_external({getter}(), (void *)({callExpr}));"
+    | .toLeanStruct fn =>
+      s!"return {fn}({callExpr});"
     | .passthrough =>
       match retRes.leanType with
       | "Unit" => s!"{callExpr};\n  return;"
@@ -394,6 +502,8 @@ private def renderReturn (retRes : ResolvedType) (callExpr : String) (inIO : Boo
     s!"return lean_io_result_mk_ok(lean_box({fn}({callExpr})));"
   | .externalAlloc getter =>
     s!"return lean_io_result_mk_ok(lean_alloc_external({getter}(), (void *)({callExpr})));"
+  | .toLeanStruct fn =>
+    s!"return lean_io_result_mk_ok({fn}({callExpr}));"
   | .passthrough =>
     match retRes.leanType with
     | "Unit" => s!"{callExpr};\n  return lean_io_result_mk_ok(lean_box(0));"
@@ -490,6 +600,8 @@ private def emitShimFunction
           s!"lean_box({fn}({outName}))"
         | .leanString =>
           s!"lean_mk_string({outName} == NULL ? \"\" : {outName})"
+        | .toLeanStruct fn =>
+          s!"{fn}({outName})"
         | .passthrough =>
           s!"lean_box_uint64((uint64_t){outName})"
       let okBlock :=
@@ -502,13 +614,6 @@ private def emitShimFunction
              s!"  if ({fa.cName}({", ".intercalate callArgs.toList})) " ++ okBlock ++ " else " ++ errBlock ++ "\n}"
     else
       .error s!"`{fa.cName}` has only {params.size} params but outParamIdx is {outIdx}"
-
-/-- Walk the parsed header for an enum decl whose tag matches and
-return its variants. -/
-private def lookupEnumTag (h : CHeader) (tag : String) : Option (Array (String × Option Int)) :=
-  h.decls.findSome? fun
-    | .enumDef (some t) variants => if t = tag then some variants else none
-    | _ => none
 
 /-- Emit the pair of static helper functions converting between a
 Lean inductive-encoded enum and the underlying C int. -/
@@ -551,6 +656,68 @@ private def emitEnumHelpers
     "  }\n}"
   return toCDef ++ "\n\n" ++ toLeanDef
 
+/-- Emit a pair of static helper functions converting between a C
+struct value and a Lean ctor.
+
+Layout assumption: 64-bit (`sizeof(void*) = sizeof(size_t) = 8`). The
+helpers mirror Lean's compiled struct ABI: boxed fields first
+(declaration order, indexed 0..N), scalars after (declaration order,
+packed by C size, no reordering). -/
+private def emitStructHelpers
+    (h : CHeader) (anno : Std.HashMap String TypeAnno)
+    (ta : TypeAnno) (sm : StructMapping)
+    : Except String String := do
+  let fields ← resolveStructFields h anno sm
+  let boxedCount := fields.filter (·.2.2.isLeanObj) |>.size
+  let scalarBytes := fields.foldl (init := 0) (· + ·.2.2.cByteSize)
+  let (toC, toLean) := structHelperNames ta.lean
+  let cTypedef := ta.cName
+  -- Per-field emit: walk in declaration order, threading the boxed-
+  -- index counter and the scalar byte offset.
+  let mut toLeanLines : Array String := #[]
+  let mut toCLines    : Array String := #[]
+  let mut boxedIdx : Nat := 0
+  -- Scalar payload starts immediately after the boxed area, which
+  -- occupies `boxedCount * sizeof(void*)` bytes.
+  let mut scalarOff : Nat := boxedCount * 8
+  for (cField, _leanField, r) in fields do
+    if r.isLeanObj then
+      -- Determine how to box/unbox a single boxed field. Strings use
+      -- lean_mk_string / lean_string_cstr; we don't yet handle other
+      -- boxed kinds inside structs (struct of opaques, etc.).
+      let toLeanExpr := match r.leanType with
+        | "String" => s!"lean_mk_string(v.{cField} == NULL ? \"\" : v.{cField})"
+        | _        => s!"/* unsupported boxed field {cField} of type {r.leanType} */ NULL"
+      let toCExpr := match r.leanType with
+        | "String" => s!"lean_string_cstr(lean_ctor_get(obj, {boxedIdx}))"
+        | _        => s!"/* unsupported boxed field {cField} */ NULL"
+      toLeanLines := toLeanLines.push s!"  lean_ctor_set(o, {boxedIdx}, {toLeanExpr});"
+      toCLines    := toCLines.push    s!"  v.{cField} = {toCExpr};"
+      boxedIdx := boxedIdx + 1
+    else
+      let suffix := r.ctorScalar
+      -- For `usize`, the index is in size_t units from `obj_cptr`. On
+      -- 64-bit that equals `scalarOff / 8`. For all other suffixes
+      -- the second arg is the byte offset itself.
+      let indexExpr :=
+        if suffix = "usize" then toString (scalarOff / 8) else toString scalarOff
+      toLeanLines := toLeanLines.push
+        s!"  lean_ctor_set_{suffix}(o, {indexExpr}, ({r.shimReturn})v.{cField});"
+      toCLines := toCLines.push
+        s!"  v.{cField} = ({r.shimReturn})lean_ctor_get_{suffix}(obj, {indexExpr});"
+      scalarOff := scalarOff + r.cByteSize
+  let toLeanFn :=
+    s!"lean_object* {toLean}({cTypedef} v) \{\n" ++
+    s!"  lean_object* o = lean_alloc_ctor(0, {boxedCount}, {scalarBytes});\n" ++
+    "\n".intercalate toLeanLines.toList ++ "\n" ++
+    s!"  return o;\n}"
+  let toCFn :=
+    s!"{cTypedef} {toC}(b_lean_obj_arg obj) \{\n" ++
+    s!"  {cTypedef} v;\n" ++
+    "\n".intercalate toCLines.toList ++ "\n" ++
+    s!"  return v;\n}"
+  return toLeanFn ++ "\n\n" ++ toCFn
+
 /-- Emit the per-opaque-type external-class boilerplate: a static
 class pointer, a lazy getter, the finalizer wrapper, and the foreach
 no-op. -/
@@ -587,15 +754,20 @@ def emitShim (b : Bindings) (h : CHeader) : Except String String := do
       | .function name .. => m.insert name d
       | .typedef name _   => m.insert name d
       | _ => m) ({} : Std.HashMap _ _)
-  -- Per-type setup: enum helpers and opaque-class boilerplate.
+  -- Per-type setup: enum helpers, opaque-class boilerplate, struct
+  -- to/from converters.
   let mut enumHelpersArr : Array String := #[]
   let mut opaqueClassArr : Array String := #[]
+  let mut structHelpersArr : Array String := #[]
   for ta in b.types do
     match ta.mapping with
     | .inductiveEnum em =>
       enumHelpersArr := enumHelpersArr.push (← emitEnumHelpers h ta em)
     | .opaquePointer fin =>
       opaqueClassArr := opaqueClassArr.push (emitOpaqueClass ta fin)
+    | .structRecord sm =>
+      structHelpersArr := structHelpersArr.push
+        (← emitStructHelpers h typeAnnoMap ta sm)
     | _ => pure ()
   let needsForeach := !opaqueClassArr.isEmpty
   let foreachDef :=
@@ -603,7 +775,7 @@ def emitShim (b : Bindings) (h : CHeader) : Except String String := do
       "static void noop_foreach(void *mod, b_lean_obj_arg fn) { (void)mod; (void)fn; }\n\n"
     else ""
   let helperBlock :=
-    let parts := (enumHelpersArr ++ opaqueClassArr).toList
+    let parts := (enumHelpersArr ++ opaqueClassArr ++ structHelpersArr).toList
     if parts.isEmpty then "" else "\n\n".intercalate parts ++ "\n\n"
   let header :=
     s!"// Auto-generated by lean-bindgen. Do not edit.\n" ++

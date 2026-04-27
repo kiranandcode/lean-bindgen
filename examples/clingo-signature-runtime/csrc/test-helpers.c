@@ -10,6 +10,31 @@ runtime even though the function-pointer-laden constructor
 `clingo_control_t` ↔ Lean `Control` mapping. */
 extern lean_external_class *get_control_class(void);
 
+/* Codegen-emitted struct converters for Location. */
+extern lean_object* location_to_lean(clingo_location_t v);
+extern clingo_location_t lean_to_location(lean_object* obj);
+
+/* Make a Location with predictable values, exercising the
+`location_to_lean` codegen path. */
+LEAN_EXPORT lean_obj_res lean_test_make_location(uint32_t line, uint32_t col) {
+  clingo_location_t loc = {
+    .begin_file   = "<begin>",
+    .end_file     = "<end>",
+    .begin_line   = line,
+    .end_line     = line + 1,
+    .begin_column = col,
+    .end_column   = col + 1
+  };
+  return location_to_lean(loc);
+}
+
+/* Read a Location from Lean and return its `end_line` field — proves
+both the lean→C and the layout offsets are correct. */
+LEAN_EXPORT size_t lean_test_location_end_line(lean_object* obj) {
+  clingo_location_t loc = lean_to_location(obj);
+  return loc.end_line;
+}
+
 /* Make a default-configured Control. Equivalent to:
      bool clingo_control_new(NULL, 0, NULL, NULL, msg_limit, &out)
    wrapped in our standard Except String result shape. */

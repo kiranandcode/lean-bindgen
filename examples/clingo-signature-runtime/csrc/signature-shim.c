@@ -35,6 +35,28 @@ lean_external_class *get_control_class() {
   return g_control_class;
 }
 
+lean_object* location_to_lean(clingo_location_t v) {
+  lean_object* o = lean_alloc_ctor(0, 2, 32);
+  lean_ctor_set(o, 0, lean_mk_string(v.begin_file == NULL ? "" : v.begin_file));
+  lean_ctor_set(o, 1, lean_mk_string(v.end_file == NULL ? "" : v.end_file));
+  lean_ctor_set_usize(o, 2, (size_t)v.begin_line);
+  lean_ctor_set_usize(o, 3, (size_t)v.end_line);
+  lean_ctor_set_usize(o, 4, (size_t)v.begin_column);
+  lean_ctor_set_usize(o, 5, (size_t)v.end_column);
+  return o;
+}
+
+clingo_location_t lean_to_location(b_lean_obj_arg obj) {
+  clingo_location_t v;
+  v.begin_file = lean_string_cstr(lean_ctor_get(obj, 0));
+  v.end_file = lean_string_cstr(lean_ctor_get(obj, 1));
+  v.begin_line = (size_t)lean_ctor_get_usize(obj, 2);
+  v.end_line = (size_t)lean_ctor_get_usize(obj, 3);
+  v.begin_column = (size_t)lean_ctor_get_usize(obj, 4);
+  v.end_column = (size_t)lean_ctor_get_usize(obj, 5);
+  return v;
+}
+
 LEAN_EXPORT lean_obj_res lean_clingo_signature_create(b_lean_obj_arg name, uint32_t arity, uint8_t positive) {
   uint64_t signature;
   char const *name_c = lean_string_cstr(name);

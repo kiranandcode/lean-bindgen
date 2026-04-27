@@ -35,7 +35,23 @@ def clingoSignatureBindings : Bindings := {
     -- pointer as an `opaque Control : Type`; the GC runs
     -- `clingo_control_free` when the last Lean reference drops.
     { cName := "clingo_control_t", lean := "Control",
-      mapping := .opaquePointer "clingo_control_free" }
+      mapping := .opaquePointer "clingo_control_free" },
+    -- Plain struct: `clingo_location_t` has 2 strings + 4 size_t.
+    -- Lean's representation is 2 boxed (the Strings) followed by 4
+    -- USize scalars. The shim emits per-field marshallers that
+    -- mirror that layout.
+    { cName := "clingo_location_t", lean := "Location",
+      mapping := .structRecord {
+        cStructTag := "clingo_location"
+        fields := #[
+          ("begin_file",   "beginFile"),
+          ("end_file",     "endFile"),
+          ("begin_line",   "beginLine"),
+          ("end_line",     "endLine"),
+          ("begin_column", "beginColumn"),
+          ("end_column",   "endColumn")
+        ]
+      } }
   ]
   functions := #[
     -- The constructor: `bool clingo_signature_create(name, arity, positive, *out)`.

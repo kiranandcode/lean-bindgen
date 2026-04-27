@@ -78,6 +78,26 @@ def ScalarTarget.toC : ScalarTarget → String
   | .usize  => "size_t"
   | .isize  => "ptrdiff_t"
 
+/-- Byte size of a Lean ctor scalar field of this type. -/
+def ScalarTarget.byteSize : ScalarTarget → Nat
+  | .unit                                      => 0
+  | .uint8 | .int8 | .bool                     => 1
+  | .uint16 | .int16                           => 2
+  | .uint32 | .int32 | .float                  => 4
+  | .uint64 | .int64 | .double | .usize | .isize => 8
+
+/-- The `lean_ctor_*_<suffix>` family that reads/writes a Lean ctor
+scalar field of this type. -/
+def ScalarTarget.ctorScalar : ScalarTarget → String
+  | .unit                                       => ""
+  | .uint8 | .int8 | .bool                      => "uint8"
+  | .uint16 | .int16                            => "uint16"
+  | .uint32 | .int32                            => "uint32"
+  | .uint64 | .int64                            => "uint64"
+  | .float                                      => "float32"
+  | .double                                     => "float"
+  | .usize | .isize                             => "usize"
+
 /-- How a C enum (and its accompanying integer typedef, if any) maps
 to a Lean inductive. The `enumTag` names the underlying C enum so the
 codegen can look up each variant's integer value from the parsed
@@ -89,6 +109,25 @@ structure EnumMapping where
   enumTag  : String
   /-- `(cVariant, leanVariant)` for each constructor. -/
   variants : Array (String × String)
+  deriving Inhabited
+
+/-- How a C struct maps to a Lean structure. The codegen looks up the
+struct's body in the parsed header by tag, then for each field listed
+here resolves the C field type to a Lean type and emits both the Lean
+`structure` declaration and a pair of `<lean>_to_lean` /
+`lean_to_<lean>` shim helpers that translate between the C struct and
+the Lean ctor representation.
+
+Fields are emitted in the order given. Lean's struct layout places
+all boxed fields first (in declaration order) followed by all scalar
+fields (in declaration order, packed by their natural C size with no
+reordering). -/
+structure StructMapping where
+  /-- The tag of the C `struct` declaration, without the `struct `
+  prefix (e.g. `clingo_location`). -/
+  cStructTag : String
+  /-- `(cField, leanField)` pairs in the desired declaration order. -/
+  fields : Array (String × String)
   deriving Inhabited
 
 /-- How a C type is presented in Lean. -/
@@ -106,6 +145,11 @@ inductive TypeMapping
   emits a pair of conversion helpers in the shim that translate
   between the C integer value and Lean's constructor index. -/
   | inductiveEnum (mapping : EnumMapping)
+  /-- A C struct with concrete fields becomes a Lean `structure`. The
+  codegen emits a Lean structure declaration plus a pair of conversion
+  helpers in the shim that move between the C struct and Lean's ctor
+  representation. -/
+  | structRecord (mapping : StructMapping)
   deriving Inhabited
 
 structure TypeAnno where

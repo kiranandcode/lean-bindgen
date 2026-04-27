@@ -14,6 +14,12 @@ external-object path at runtime. -/
 @[extern "lean_test_make_default_control"]
 opaque makeDefaultControl (msgLimit : UInt32) : IO (Except String Control)
 
+@[extern "lean_test_make_location"]
+opaque makeTestLocation (line col : UInt32) : Location
+
+@[extern "lean_test_location_end_line"]
+opaque locationEndLine (loc : @& Location) : USize
+
 /-! End-to-end runtime test: drives the auto-generated bindings against
 real libclingo (5.8.0 from Homebrew). Each assertion exercises a
 different shim path. -/
@@ -91,3 +97,15 @@ def main : IO Unit := do
     | .ok _    => pure ()
     | .error _ => pure ()
   IO.println s!"  ✓ constructed and dropped {n} Controls"
+  -- Struct round-trip: build a Location in C, examine its fields in
+  -- Lean (which goes via lean_ctor_get/_usize), then read the
+  -- end_line back through lean_to_location and the C-side accessor.
+  IO.println "\nlean-bindgen runtime check: struct (Location)"
+  let loc := makeTestLocation 42 7
+  assertEq "loc.beginFile"   loc.beginFile   "<begin>"
+  assertEq "loc.endFile"     loc.endFile     "<end>"
+  assertEq "loc.beginLine"   loc.beginLine   (42 : USize)
+  assertEq "loc.endLine"     loc.endLine     (43 : USize)
+  assertEq "loc.beginColumn" loc.beginColumn (7  : USize)
+  assertEq "loc.endColumn"   loc.endColumn   (8  : USize)
+  assertEq "lean→C→read endLine" (locationEndLine loc) (43 : USize)

@@ -15,6 +15,15 @@ inductive Error where
 
 opaque Control : Type
 
+structure Location where
+  beginFile : String
+  endFile : String
+  beginLine : USize
+  endLine : USize
+  beginColumn : USize
+  endColumn : USize
+  deriving Repr, Inhabited
+
 @[extern "lean_clingo_signature_create"]
 opaque mk : @& String → UInt32 → Bool → IO (Except String Signature)
 
