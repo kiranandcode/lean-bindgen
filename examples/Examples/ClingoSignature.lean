@@ -29,7 +29,13 @@ def clingoSignatureBindings : Bindings := {
           ("clingo_error_bad_alloc", "badAlloc"),
           ("clingo_error_unknown",   "unknown")
         ]
-      } }
+      } },
+    -- Opaque external object: `clingo_control_t` is an incomplete C
+    -- struct accessed only through `clingo_control_t *`. Lean wraps a
+    -- pointer as an `opaque Control : Type`; the GC runs
+    -- `clingo_control_free` when the last Lean reference drops.
+    { cName := "clingo_control_t", lean := "Control",
+      mapping := .opaquePointer "clingo_control_free" }
   ]
   functions := #[
     -- The constructor: `bool clingo_signature_create(name, arity, positive, *out)`.
@@ -48,6 +54,10 @@ def clingoSignatureBindings : Bindings := {
     -- (impure — `IO Error`), `errorString` is a pure mapping from a
     -- code to its string name.
     { cName := "clingo_error_code",   lean := "errorCode",   inIO := true },
-    { cName := "clingo_error_string", lean := "errorString" }
+    { cName := "clingo_error_string", lean := "errorString" },
+    -- Opaque-receiving function: `clingo_control_interrupt` takes a
+    -- `Control` and returns nothing. Exercises `lean_get_external_data`
+    -- on the parameter side.
+    { cName := "clingo_control_interrupt", lean := "interrupt", inIO := true }
   ]
 }

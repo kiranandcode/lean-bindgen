@@ -13,6 +13,8 @@ inductive Error where
   | unknown
   deriving Repr, Inhabited
 
+opaque Control : Type
+
 @[extern "lean_clingo_signature_create"]
 opaque mk : @& String → UInt32 → Bool → IO (Except String Signature)
 
@@ -42,5 +44,8 @@ opaque errorCode : IO Error
 
 @[extern "lean_clingo_error_string"]
 opaque errorString : Error → String
+
+@[extern "lean_clingo_control_interrupt"]
+opaque interrupt : @& Control → IO Unit
 
 end Generated.Signature

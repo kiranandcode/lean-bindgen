@@ -97,9 +97,10 @@ inductive TypeMapping
   | scalarNewtype (k : ScalarTarget)
   /-- An incomplete C struct accessed only by pointer becomes
   `opaque T : Type` plus a `lean_external_class` registration on the
-  shim side. (External-class registration is not yet emitted by the
-  codegen MVP.) -/
-  | opaquePointer
+  shim side. `finalizer` names the C function that frees a value
+  (e.g. `clingo_control_free`) and is run from the Lean GC when the
+  last reference is dropped. -/
+  | opaquePointer (finalizer : String)
   /-- A C enum (or `int`-typedef paired with one) becomes a Lean
   `inductive` with one nullary constructor per variant. The codegen
   emits a pair of conversion helpers in the shim that translate

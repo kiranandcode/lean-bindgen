@@ -2,6 +2,8 @@
 #include "lean/lean.h"
 #include "clingo.h"
 
+static void noop_foreach(void *mod, b_lean_obj_arg fn) { (void)mod; (void)fn; }
+
 static clingo_error_t lean_to_error(uint8_t cidx) {
   switch (cidx) {
     case 0: return clingo_error_success;
@@ -24,8 +26,17 @@ static uint8_t error_to_lean(clingo_error_t v) {
   }
 }
 
+static void finalize_control(void *ptr) { clingo_control_free((clingo_control_t *)ptr); }
+static lean_external_class *g_control_class = NULL;
+static lean_external_class *get_control_class() {
+  if (g_control_class == NULL) {
+    g_control_class = lean_register_external_class(&finalize_control, &noop_foreach);
+  }
+  return g_control_class;
+}
+
 LEAN_EXPORT lean_obj_res lean_clingo_signature_create(b_lean_obj_arg name, uint32_t arity, uint8_t positive) {
-  clingo_signature_t signature;
+  uint64_t signature;
   char const *name_c = lean_string_cstr(name);
   if (clingo_signature_create(name_c, arity, positive, &signature)) {
       lean_object* val = lean_box_uint64((uint64_t)signature);
@@ -78,4 +89,10 @@ LEAN_EXPORT lean_obj_res lean_clingo_error_string(uint8_t code) {
   clingo_error_t code_c = lean_to_error(code);
   char const *_ret = clingo_error_string(code_c);
   return lean_mk_string(_ret == NULL ? "" : _ret);
+}
+
+LEAN_EXPORT lean_obj_res lean_clingo_control_interrupt(b_lean_obj_arg control) {
+  clingo_control_t * control_c = (clingo_control_t *) lean_get_external_data(control);
+  clingo_control_interrupt(control_c);
+  return lean_io_result_mk_ok(lean_box(0));
 }

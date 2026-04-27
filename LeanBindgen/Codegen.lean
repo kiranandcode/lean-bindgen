@@ -38,26 +38,52 @@ The mapping uses the `TypeAnno`s from `Bindings` plus a small built-in
 table for primitive C types and stdint width-typedefs.
 -/
 
-/-- A resolved Lean target for a C type. Carries both the Lean
-identifier (for emitting Lean code) and a description of how the value
-crosses the FFI boundary (for emitting shim code). -/
+/-- How a parameter of this resolved type gets transformed in the
+shim before being passed to the wrapped C function. -/
+inductive ParamMarshal
+  /-- Pass through directly — for plain scalars whose Lean and C
+  representations coincide. -/
+  | passthrough
+  /-- `lean_string_cstr` to get a `char const *` from a Lean `String`. -/
+  | leanString
+  /-- Pass through the named per-enum helper (`lean_to_<enum>`) which
+  takes a `uint8_t cidx` and returns the C int value. -/
+  | enumHelper (helperFn : String)
+  /-- Treat as a Lean external object: extract the payload pointer via
+  `lean_get_external_data` and cast to the given C type. -/
+  | externalData (cType : String)
+  deriving Inhabited
+
+/-- How a C return value of this resolved type gets transformed in
+the shim before being returned to Lean. -/
+inductive ReturnMarshal
+  /-- Direct cast to `shimReturn` and return. -/
+  | passthrough
+  /-- `lean_mk_string` (handles NULL → ""). -/
+  | leanString
+  /-- Run through the named per-enum helper (`<enum>_to_lean`) which
+  yields a `uint8_t cidx`. The IO/non-IO wrapper handles the rest. -/
+  | enumHelper (helperFn : String)
+  /-- Wrap a raw C pointer as a Lean external object using the named
+  class-getter function. -/
+  | externalAlloc (classGetter : String)
+  deriving Inhabited
+
+/-- A resolved Lean target for a C type. -/
 structure ResolvedType where
   leanType   : String
+  /-- C type used in the shim's parameter list. -/
   shimParam  : String
+  /-- C type used in the shim's return position. -/
   shimReturn : String
+  /-- C type used to declare a stack-local of this type (for example,
+  to back an out-parameter). For pointer-typed values this is the
+  pointee type (so `&local` has the right kind). -/
+  cLocalType : String := ""
   /-- True when the value crosses as a boxed `lean_object *`. -/
   isLeanObj  : Bool := false
-  /-- If set, the shim must pass each parameter of this type through
-  this helper to obtain the underlying C value before calling the
-  wrapped function (Lean → C). -/
-  shimUnbox  : Option String := none
-  /-- If set, the C return value of this type must be passed through
-  this helper to obtain the Lean object to return (C → Lean). -/
-  shimBox    : Option String := none
-  /-- C type name to use for a stack-local of this type when we need
-  to declare one (e.g. for an out-param). For boxed types this is
-  `lean_object *`; for scalars it's `int`/`uint64_t`/etc. -/
-  shimLocal  : String := ""
+  paramMarshal  : ParamMarshal := .passthrough
+  returnMarshal : ReturnMarshal := .passthrough
   deriving Inhabited
 
 /-- Constructor for a "scalar-like" mapping where shim param and
@@ -65,14 +91,15 @@ return are the same C type, and the value is *not* a boxed Lean
 object. -/
 private def scalarRT (lean cTy : String) : ResolvedType :=
   { leanType := lean, shimParam := cTy, shimReturn := cTy,
-    isLeanObj := false, shimLocal := cTy }
+    cLocalType := cTy }
 
-/-- Constructor for a Lean-object-typed mapping (e.g. `String`,
-opaque pointers): boxed across the FFI. -/
-private def boxedRT (lean : String) : ResolvedType :=
-  { leanType := lean, shimParam := "b_lean_obj_arg",
-    shimReturn := "lean_obj_res", isLeanObj := true,
-    shimLocal := "lean_object *" }
+/-- Constructor for the Lean `String` mapping (boxed, marshalled via
+`lean_string_cstr` / `lean_mk_string`). -/
+private def stringRT : ResolvedType :=
+  { leanType := "String", shimParam := "b_lean_obj_arg",
+    shimReturn := "lean_obj_res", cLocalType := "char const *",
+    isLeanObj := true,
+    paramMarshal := .leanString, returnMarshal := .leanString }
 
 /-- Build the conversion helper names for an enum mapping. -/
 private def enumHelpers (lean : String) : String × String :=
@@ -82,15 +109,35 @@ private def enumHelpers (lean : String) : String × String :=
   (s!"lean_to_{snake}", s!"{snake}_to_lean")
 
 /-- Constructor for a Lean inductive backed by a C int (typedef +
-enum). Lean compiles all-nullary inductives to a *raw* `uint8_t` (the
-constructor index) at the FFI boundary, so we cross as a scalar; the
-per-enum helpers translate between cidx and the C enum value. -/
+enum). Lean compiles all-nullary inductives to a raw `uint8_t` at the
+FFI boundary; the helpers translate cidx ↔ C value. -/
 private def enumRT (leanName cTypedef : String) : ResolvedType :=
   let (toC, toLean) := enumHelpers leanName
   { leanType := leanName, shimParam := "uint8_t",
-    shimReturn := "uint8_t", isLeanObj := false,
-    shimLocal := cTypedef,
-    shimUnbox := some toC, shimBox := some toLean }
+    shimReturn := "uint8_t", cLocalType := cTypedef,
+    paramMarshal := .enumHelper toC, returnMarshal := .enumHelper toLean }
+
+/-- The class-getter name for an opaque-pointer mapping. -/
+private def externalClassGetter (lean : String) : String :=
+  let snake := lean.foldl (init := "") fun acc c =>
+    if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
+    else acc ++ String.singleton c.toLower
+  s!"get_{snake}_class"
+
+/-- Constructor for an opaque-pointer mapping. The C-side value is a
+`<typedef> *` wrapped as a Lean external object; the shim extracts via
+`lean_get_external_data` (with a cast) and wraps via
+`lean_alloc_external` against a per-type class.
+
+`cTypedef` is the typedef name of the *underlying struct* (e.g.,
+`clingo_control_t`); the C-side payload type is `cTypedef *`. -/
+private def opaqueRT (leanName cTypedef : String) : ResolvedType :=
+  let cPtr := cTypedef ++ " *"
+  { leanType := leanName, shimParam := "b_lean_obj_arg",
+    shimReturn := "lean_obj_res", cLocalType := cPtr,
+    isLeanObj := true,
+    paramMarshal  := .externalData cPtr,
+    returnMarshal := .externalAlloc (externalClassGetter leanName) }
 
 /-- Built-in primitive C → Lean mappings, applied before consulting
 the user's `Bindings`. -/
@@ -139,36 +186,34 @@ partial def resolveType
   -- Pointer to char/const char → Lean String.
   | .pointer (.const (.scalar .char _))
   | .pointer (.scalar .char _) =>
-      .ok (boxedRT "String")
+      .ok stringRT
   -- Typedef name: look up in user bindings, then in stdint table.
   | .typedef name =>
     match anno[name]? with
     | some a =>
       match a.mapping with
       | .scalarNewtype k     => .ok (scalarRT a.lean k.toC)
-      | .opaquePointer       => .ok (boxedRT a.lean)
+      | .opaquePointer _     => .ok (opaqueRT a.lean name)
       | .inductiveEnum _     => .ok (enumRT a.lean name)
     | none =>
       match stdintMap[name]? with
       | some r => .ok r
       | none   => .error s!"unmapped typedef `{name}`"
-  -- Pointer to user-annotated type. Usually shows up as a bool-status
-  -- function's out-param; the call site strips it before reaching this
-  -- branch. Surface it as an explicit pointer so the shim emitter has
-  -- something to use.
+  -- Pointer to user-annotated type — typically the C signature shape
+  -- for an opaque type (`clingo_control_t *`) in a parameter or out-
+  -- pointer position. We resolve this to the same Lean opaque the
+  -- typedef itself maps to.
   | .pointer (.typedef name) =>
     match anno[name]? with
     | some a =>
       match a.mapping with
       | .scalarNewtype k =>
         .ok { leanType := a.lean, shimParam := k.toC ++ " *",
-              shimReturn := k.toC ++ " *", isLeanObj := false,
-              shimLocal := k.toC }
-      | .opaquePointer   => .ok (boxedRT a.lean)
+              shimReturn := k.toC ++ " *", cLocalType := k.toC }
+      | .opaquePointer _ => .ok (opaqueRT a.lean name)
       | .inductiveEnum _ =>
         .ok { leanType := a.lean, shimParam := name ++ " *",
-              shimReturn := name ++ " *", isLeanObj := false,
-              shimLocal := name }
+              shimReturn := name ++ " *", cLocalType := name }
     | none => .error s!"unmapped pointer-to-typedef `{name}`"
   | _ =>
     match primitiveMap ty with
@@ -256,7 +301,7 @@ private def emitTypeDecl (ta : TypeAnno) : String :=
   match ta.mapping with
   | .scalarNewtype k =>
     s!"def {ta.lean} := {k.toLean}\n  deriving Repr, Inhabited"
-  | .opaquePointer =>
+  | .opaquePointer _ =>
     s!"opaque {ta.lean} : Type"
   | .inductiveEnum em =>
     let ctors := "\n".intercalate
@@ -304,51 +349,56 @@ private def shimParamList
     let baseName := (params[i]?.bind (·.name)).getD s!"arg{i}"
     s!"{r.shimParam} {baseName}"
 
-/-- Build the C-side argument expression for one shim parameter.
-For most types this is just the parameter name; `String` parameters
-are unboxed via `lean_string_cstr` into a local; enum-typed
-parameters are passed through the per-enum helper. Returns the
-prelude statements (in declaration order) and the expression to use
-in the call. -/
+/-- Render `(prelude, expr)` for one shim parameter, dispatching on
+its `paramMarshal`. The `prelude` lines (if any) declare locals; the
+`expr` is what gets passed to the underlying C call. -/
 private def renderParamPass (r : ResolvedType) (nm : String)
     : Array String × String :=
-  if r.leanType = "String" then
-    (#[s!"  char const *{nm}_c = lean_string_cstr({nm});"], s!"{nm}_c")
-  else if let some unbox := r.shimUnbox then
-    (#[s!"  {r.shimLocal} {nm}_c = {unbox}({nm});"], s!"{nm}_c")
-  else
-    (#[], nm)
+  match r.paramMarshal with
+  | .passthrough            => (#[], nm)
+  | .leanString             =>
+      (#[s!"  char const *{nm}_c = lean_string_cstr({nm});"], s!"{nm}_c")
+  | .enumHelper fn          =>
+      (#[s!"  {r.cLocalType} {nm}_c = {fn}({nm});"], s!"{nm}_c")
+  | .externalData cTy       =>
+      (#[s!"  {cTy} {nm}_c = ({cTy}) lean_get_external_data({nm});"], s!"{nm}_c")
 
-/-- Render the C statement(s) that produce the shim's return value
-from the result of the C call. -/
+/-- The C expression that turns the C-call result into a Lean object
+(prior to any IO wrapping). For non-IO returns whose Lean type *isn't*
+a Lean object (e.g. plain scalar, plain enum cidx), the expression
+will be a non-Lean-object value — the caller emits it directly as the
+shim's return value. -/
 private def renderReturn (retRes : ResolvedType) (callExpr : String) (inIO : Bool)
     : String :=
-  let raw : String :=
-    match retRes.leanType with
-    | "Unit"   => s!"{callExpr};\n  return lean_box(0);"
-    | "String" =>
+  -- `bare` is the *non-IO* return statement.
+  let bare : String :=
+    match retRes.returnMarshal with
+    | .leanString =>
       s!"char const *_ret = {callExpr};\n  return lean_mk_string(_ret == NULL ? \"\" : _ret);"
-    | "Bool"   => s!"return {callExpr} ? 1 : 0;"
-    | _ =>
-      match retRes.shimBox with
-      | some boxFn => s!"return {boxFn}({callExpr});"
-      | none       => s!"return ({retRes.shimReturn})({callExpr});"
-  if inIO then
-    -- Wrap in lean_io_result_mk_ok. Different return shapes need
-    -- different surface — Unit is `lean_box(0)`, String is the result
-    -- of `lean_mk_string`, plain scalars use `lean_box_uint64`, and
-    -- enum-typed returns are first run through `shimBox` (which gives
-    -- a uint8_t cidx) and then `lean_box`'d.
+    | .enumHelper fn =>
+      s!"return {fn}({callExpr});"
+    | .externalAlloc getter =>
+      s!"return lean_alloc_external({getter}(), (void *)({callExpr}));"
+    | .passthrough =>
+      match retRes.leanType with
+      | "Unit" => s!"{callExpr};\n  return;"
+      | "Bool" => s!"return {callExpr} ? 1 : 0;"
+      | _      => s!"return ({retRes.shimReturn})({callExpr});"
+  if !inIO then bare else
+  -- IO wrap. We need a *Lean object* to give to `lean_io_result_mk_ok`.
+  -- Each marshalling kind has a different way of producing one.
+  match retRes.returnMarshal with
+  | .leanString =>
+    s!"char const *_ret = {callExpr};\n  return lean_io_result_mk_ok(lean_mk_string(_ret == NULL ? \"\" : _ret));"
+  | .enumHelper fn =>
+    s!"return lean_io_result_mk_ok(lean_box({fn}({callExpr})));"
+  | .externalAlloc getter =>
+    s!"return lean_io_result_mk_ok(lean_alloc_external({getter}(), (void *)({callExpr})));"
+  | .passthrough =>
     match retRes.leanType with
-    | "Unit"   => s!"{callExpr};\n  return lean_io_result_mk_ok(lean_box(0));"
-    | "String" => s!"char const *_ret = {callExpr};\n  return lean_io_result_mk_ok(lean_mk_string(_ret == NULL ? \"\" : _ret));"
-    | "Bool"   => s!"return lean_io_result_mk_ok(lean_box({callExpr} ? 1 : 0));"
-    | _ =>
-      match retRes.shimBox with
-      | some boxFn => s!"return lean_io_result_mk_ok(lean_box({boxFn}({callExpr})));"
-      | none       => s!"return lean_io_result_mk_ok(lean_box_uint64((uint64_t)({callExpr})));"
-  else
-    raw
+    | "Unit" => s!"{callExpr};\n  return lean_io_result_mk_ok(lean_box(0));"
+    | "Bool" => s!"return lean_io_result_mk_ok(lean_box({callExpr} ? 1 : 0));"
+    | _      => s!"return lean_io_result_mk_ok(lean_box_uint64((uint64_t)({callExpr})));"
 
 /-- Emit the body of a "direct" shim: marshal each parameter, call the
 underlying C function, marshal the result. -/
@@ -405,32 +455,43 @@ private def emitShimFunction
       let outName := (params[outIdx].name).getD s!"arg{outIdx}"
       let .pointer pointee := params[outIdx].type
         | .error "out-param is not a pointer (shim)"
-      let pointeeC := match pointee with
-        | .typedef n => n
-        | _          => "void *"  -- unexpected; surface below
+      let pointeeRes ← resolveType anno pointee
       -- Build visible params.
       let visible := allRes.zipIdx.filter (fun (_, i) => i ≠ outIdx)
       let plist := visible.map (fun (r, i) =>
         let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
         s!"{r.shimParam} {nm}")
-      let mut prelude := #[]
-      let mut callArgs := #[]
+      let mut prelude : Array String := #[]
+      let mut callArgs : Array String := #[]
       for h : i in [:allRes.size] do
         let r := allRes[i]
         let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
         if i = outIdx then
           callArgs := callArgs.push s!"&{outName}"
-        else if r.leanType = "String" then
-          prelude := prelude.push s!"  char const *{nm}_c = lean_string_cstr({nm});"
-          callArgs := callArgs.push s!"{nm}_c"
         else
-          callArgs := callArgs.push nm
+          let (pre, expr) := renderParamPass r nm
+          prelude := prelude ++ pre
+          callArgs := callArgs.push expr
       let preludeStr := "\n".intercalate prelude.toList
-      let outDecl := s!"  {pointeeC} {outName};"
-      let okMarshal :=
-        s!"    return lean_io_result_mk_ok(lean_alloc_ctor(1, 1, 0)); /* Except.ok */"
-      -- Build "Except.ok(value)" properly:
-      let valExpr := s!"lean_box_uint64((uint64_t){outName})"
+      -- Local type for the out-param. For an opaque-pointer out-param
+      -- the C function expects `clingo_X_t **`, so we declare
+      -- `clingo_X_t *<name> = NULL;` and pass `&<name>`.
+      let outDecl :=
+        match pointeeRes.returnMarshal with
+        | .externalAlloc _ => s!"  {pointeeRes.cLocalType} {outName} = NULL;"
+        | _                => s!"  {pointeeRes.cLocalType} {outName};"
+      -- Build the success-value expression based on the out-param's
+      -- return-marshalling kind.
+      let valExpr :=
+        match pointeeRes.returnMarshal with
+        | .externalAlloc getter =>
+          s!"lean_alloc_external({getter}(), (void *){outName})"
+        | .enumHelper fn =>
+          s!"lean_box({fn}({outName}))"
+        | .leanString =>
+          s!"lean_mk_string({outName} == NULL ? \"\" : {outName})"
+        | .passthrough =>
+          s!"lean_box_uint64((uint64_t){outName})"
       let okBlock :=
         s!"\{\n      lean_object* val = {valExpr};\n      lean_object* ok = lean_alloc_ctor(1, 1, 0);\n      lean_ctor_set(ok, 0, val);\n      return lean_io_result_mk_ok(ok);\n    }"
       let errBlock :=
@@ -473,25 +534,45 @@ private def emitEnumHelpers
   let toCcases := "\n".intercalate
     (pairs.toList.zipIdx.map fun ((cV, _, _), i) =>
       s!"    case {i}: return {cV};")
-  let toLeanCases := "\n".intercalate
-    (pairs.toList.zipIdx.map fun ((cV, _, _), i) =>
-      s!"    case {cV}: return lean_box({i});")
   let toCDef :=
     s!"static {ta.cName} {toC}(uint8_t cidx) \{\n" ++
     s!"  switch (cidx) \{\n" ++
     toCcases ++ "\n" ++
     s!"    default: return ({ta.cName})0;\n" ++
     "  }\n}"
-  let toLeanCases' := "\n".intercalate
+  let toLeanCases := "\n".intercalate
     (pairs.toList.zipIdx.map fun ((cV, _, _), i) =>
       s!"    case {cV}: return {i};")
   let toLeanDef :=
     s!"static uint8_t {toLean}({ta.cName} v) \{\n" ++
     s!"  switch (v) \{\n" ++
-    toLeanCases' ++ "\n" ++
+    toLeanCases ++ "\n" ++
     s!"    default: return 0;\n" ++
     "  }\n}"
   return toCDef ++ "\n\n" ++ toLeanDef
+
+/-- Emit the per-opaque-type external-class boilerplate: a static
+class pointer, a lazy getter, the finalizer wrapper, and the foreach
+no-op. -/
+private def emitOpaqueClass (ta : TypeAnno) (finalizer : String) : String :=
+  let getter := externalClassGetter ta.lean
+  let cTypedef := ta.cName
+  let finalizerWrapper :=
+    let snake := ta.lean.foldl (init := "") fun acc c =>
+      if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
+      else acc ++ String.singleton c.toLower
+    s!"finalize_{snake}"
+  let classGlobal :=
+    let snake := ta.lean.foldl (init := "") fun acc c =>
+      if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
+      else acc ++ String.singleton c.toLower
+    s!"g_{snake}_class"
+  s!"static void {finalizerWrapper}(void *ptr) \{ {finalizer}(({cTypedef} *)ptr); }\n" ++
+  s!"static lean_external_class *{classGlobal} = NULL;\n" ++
+  s!"static lean_external_class *{getter}() \{\n" ++
+  s!"  if ({classGlobal} == NULL) \{\n" ++
+  s!"    {classGlobal} = lean_register_external_class(&{finalizerWrapper}, &noop_foreach);\n" ++
+  s!"  }\n  return {classGlobal};\n}"
 
 /-- Generate the entire shim source text. -/
 def emitShim (b : Bindings) (h : CHeader) : Except String String := do
@@ -503,19 +584,33 @@ def emitShim (b : Bindings) (h : CHeader) : Except String String := do
       | .function name .. => m.insert name d
       | .typedef name _   => m.insert name d
       | _ => m) ({} : Std.HashMap _ _)
-  -- Emit conversion helpers once per enum-typed annotation.
-  let mut helpers : Array String := #[]
+  -- Per-type setup: enum helpers and opaque-class boilerplate.
+  let mut enumHelpersArr : Array String := #[]
+  let mut opaqueClassArr : Array String := #[]
   for ta in b.types do
     match ta.mapping with
-    | .inductiveEnum em => helpers := helpers.push (← emitEnumHelpers h ta em)
+    | .inductiveEnum em =>
+      enumHelpersArr := enumHelpersArr.push (← emitEnumHelpers h ta em)
+    | .opaquePointer fin =>
+      opaqueClassArr := opaqueClassArr.push (emitOpaqueClass ta fin)
     | _ => pure ()
+  let needsForeach := !opaqueClassArr.isEmpty
+  let foreachDef :=
+    if needsForeach then
+      "static void noop_foreach(void *mod, b_lean_obj_arg fn) { (void)mod; (void)fn; }\n\n"
+    else ""
   let helperBlock :=
-    if helpers.isEmpty then "" else "\n\n".intercalate helpers.toList ++ "\n\n"
-  let header := s!"// Auto-generated by lean-bindgen. Do not edit.\n#include \"lean/lean.h\"\n#include \"{b.headerPath.splitOn "/" |>.getLast!}\"\n\n"
+    let parts := (enumHelpersArr ++ opaqueClassArr).toList
+    if parts.isEmpty then "" else "\n\n".intercalate parts ++ "\n\n"
+  let header :=
+    s!"// Auto-generated by lean-bindgen. Do not edit.\n" ++
+    s!"#include \"lean/lean.h\"\n" ++
+    s!"#include \"{b.headerPath.splitOn "/" |>.getLast!}\"\n\n"
   let mut block := #[]
   for fa in b.functions do
     block := block.push (← emitShimFunction b typeAnnoMap declMap fa)
-  return header ++ helperBlock ++ "\n\n".intercalate block.toList ++ "\n"
+  return header ++ foreachDef ++ helperBlock ++
+         "\n\n".intercalate block.toList ++ "\n"
 
 end Codegen
 end LeanBindgen
