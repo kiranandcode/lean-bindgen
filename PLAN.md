@@ -220,17 +220,82 @@ modest.
   cleango and should stay that way; the codegen is responsible for
   the *boring* extern + shim glue, not the API design.
 
-## Suggested next sequence
+## Implementation status
 
-1. Arrays (#1) — opens up the largest immediate surface.
-2. Nested struct-by-value (#2) — small change, reuses #1 for arrays
-   inside structs.
-3. Mutual recursion (#3) — bookkeeping, minor.
-4. Tagged unions (#4) — the big one.
-5. Owned deep-structure lifetime (#5) — needed when emitted bindings
-   pass deep AST structures *into* the C library (most clingo AST
-   construction APIs).
+| Gap | Status | Notes |
+|-----|--------|-------|
+| #1 Array+size pairs (function params) | **DONE** | `ParamMarshal.array`, `ArrayElemKind`, `FunctionAnno.arrayPairs` |
+| #2 Nested struct-by-value fields | **DONE** | Dispatch on marshal kind in `emitStructHelpers` |
+| #3 Mutual recursion | **DONE** | Kosaraju SCC in `emitLeanModule` |
+| #4 Tagged unions | **DONE** | `TaggedUnionMapping`, `emitTaggedUnionHelpers`, parser flattens anonymous unions |
+| #5 Owned deep-structure lifetime | **DONE** | `free_<type>` helpers, ptr-to-struct malloc/deref, `retainedParams` |
+| #6 Array fields in struct mappings | **DONE** | `StructMapping.arrayFields`, `resolveStructFields` array detection, toLean/toC array loops, per-element free |
+| #7 Forward declarations for recursive helpers | **DONE** | All struct/TU helper sigs emitted as forward decls before definitions |
 
-After #1–#3, the codegen should be able to auto-generate the
-shallow half of `Clingo/Ast.lean`. After #4–#5, the full AST plus the
-recursive `Clingo/Lang.lean` material.
+## Remaining gaps to full cleango AST coverage
+
+### 6. Array fields inside struct/tagged-union mappings
+
+The biggest remaining gap. The clingo AST is full of `(T const *data,
+size_t size)` pairs as struct fields (not function parameters):
+
+```c
+typedef struct clingo_ast_function {
+    char const *name;
+    clingo_ast_term_t const *arguments;   // array of terms
+    size_t size;
+} clingo_ast_function_t;
+
+typedef struct clingo_ast_pool {
+    clingo_ast_term_t const *arguments;
+    size_t size;
+} clingo_ast_pool_t;
+```
+
+The existing `arrayPairs` mechanism only works for function parameters.
+Struct fields have no equivalent.
+
+**Annotation change** — `StructMapping.arrayFields`:
+```lean
+structure StructMapping where
+  cStructTag : String
+  fields : Array (String × String)
+  /-- Pairs (dataField, sizeField) for C array-field pairs within the
+  struct. The dataField must appear in `fields`; the sizeField must
+  NOT appear in `fields` (it's hidden from the Lean struct). On the
+  Lean side, the data field becomes `Array T`. -/
+  arrayFields : Array (String × String) := []
+```
+
+**Codegen changes:**
+- `resolveStructFields`: when a field is the data field of an
+  `arrayFields` pair, strip the pointer to get the element type,
+  resolve the element, and produce an `arrayRT`.
+- `emitStructHelpers` toLean: emit a loop reading `v.data[i]` and
+  building a `lean_array_push` chain, store result with `lean_ctor_set`.
+- `emitStructHelpers` toC: extract the Lean Array via
+  `lean_ctor_get`, walk with `lean_to_array`, malloc buffer, marshal
+  each element, set `v.data` and `v.size`.
+- `emitFreeHelper`: for array fields with struct elements, emit
+  per-element `free_<elem>(&buf[i])` loop then `free(buf)`.
+
+**What it unlocks:** Every clingo AST "container" struct —
+`clingo_ast_function_t`, `clingo_ast_pool_t`,
+`clingo_ast_body_aggregate_element_t`, etc. Through the existing
+tagged-union variant payload chaining (Gap #5 gave us
+malloc/deref/free for ptr-to-struct), once the wrapper structs
+handle arrays, the tagged union helpers call them transitively.
+
+### 7. Forward declarations for recursive C helpers
+
+When types form a cycle (e.g., `Term` → `UnaryOperation` → `Term`),
+the generated C helpers call each other. C requires forward
+declarations for functions used before their definition.
+
+**Approach:** Emit forward declarations for all struct/tagged-union
+helper function signatures at the top of the helper block, before any
+definitions. This is harmless for non-recursive types and necessary
+for recursive ones. Also emit forward declarations for free helpers.
+
+**What it unlocks:** The full recursive clingo AST
+(`clingo_ast_term_t` ↔ `clingo_ast_unary_operation_t` ↔ etc.).

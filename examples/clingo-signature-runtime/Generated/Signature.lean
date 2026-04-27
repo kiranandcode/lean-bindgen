@@ -64,15 +64,18 @@ opaque blt : Signature → Signature → Bool
 opaque hash : Signature → USize
 
 @[extern "lean_clingo_error_code"]
-opaque errorCode : IO Error
+opaque errorCode : IO (Error)
 
 @[extern "lean_clingo_error_string"]
 opaque errorString : Error → String
 
 @[extern "lean_clingo_control_interrupt"]
-opaque interrupt : @& Control → IO Unit
+opaque interrupt : @& Control → IO (Unit)
 
 @[extern "lean_clingo_parse_term"]
 opaque parseTerm : @& String → @& Logger → UInt32 → IO (Except String Symbol)
+
+@[extern "lean_clingo_symbol_create_function"]
+opaque mkFun : @& String → @& Array Symbol → Bool → IO (Except String Symbol)
 
 end Generated.Signature

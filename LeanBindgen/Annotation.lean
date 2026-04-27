@@ -118,15 +118,73 @@ here resolves the C field type to a Lean type and emits both the Lean
 `lean_to_<lean>` shim helpers that translate between the C struct and
 the Lean ctor representation.
 
-Fields are emitted in the order given. Lean's struct layout places
-all boxed fields first (in declaration order) followed by all scalar
-fields (in declaration order, packed by their natural C size with no
-reordering). -/
+Fields are emitted in the order given. Lean's runtime ctor layout
+reorders fields: pointer (boxed) fields first (declaration order),
+then USize fields (declaration order), then other scalars by
+descending byte size (declaration order within same size). -/
 structure StructMapping where
   /-- The tag of the C `struct` declaration, without the `struct `
   prefix (e.g. `clingo_location`). -/
   cStructTag : String
-  /-- `(cField, leanField)` pairs in the desired declaration order. -/
+  /-- `(cField, leanField)` pairs in the desired declaration order.
+  For array-field pairs, include only the *data* field here (the
+  size field is hidden from the Lean struct). -/
+  fields : Array (String × String)
+  /-- Pairs `(dataField, sizeField)` for C array-field pairs within
+  the struct. The `dataField` must appear in `fields`; the
+  `sizeField` must NOT appear in `fields`. On the Lean side, the
+  data field becomes `Array T` (element type resolved from the
+  pointer target). -/
+  arrayFields : Array (String × String) := #[]
+  deriving Inhabited
+
+/-- One variant of a tagged union: associates a C enum value with a
+Lean constructor and the union field that carries the payload. -/
+structure TaggedVariant where
+  /-- The C enum constant (e.g. `clingo_ast_term_type_symbol`). -/
+  cTag : String
+  /-- The Lean constructor name (e.g. `symbol`). -/
+  leanCtor : String
+  /-- The union field name in the C struct (e.g. `symbol`). -/
+  unionField : String
+  /-- Lean type(s) for this variant's payload. If empty, the
+  constructor is nullary. Each entry is a `(leanName, leanType)` pair
+  where `leanType` is expressed in terms of already-mapped Lean types
+  (resolved at codegen time). For single-field variants, a single
+  entry suffices; for variants with multiple fields (e.g. a nested
+  struct), provide one per payload field.
+  If `none`, the payload type is resolved from the union field's C
+  type automatically. -/
+  payloadOverride : Option (Array (String × String)) := none
+  deriving Inhabited
+
+/-- Describes a C tagged-union struct: a struct with a discriminator
+enum field and an anonymous union. The Lean codegen emits either a
+standalone `inductive` (when `sharedFields` is empty) or a wrapper
+`structure` plus an inner `inductive` (when shared fields exist). -/
+structure TaggedUnionMapping where
+  /-- The tag of the C `struct` declaration. -/
+  cStructTag : String
+  /-- The C field name of the discriminator (e.g. `type`). -/
+  tagField : String
+  /-- The C `enum` tag backing the discriminator. -/
+  tagEnum : String
+  /-- Shared fields (present in all variants) that become fields of
+  a wrapper structure. `(cField, leanField)` pairs. -/
+  sharedFields : Array (String × String) := #[]
+  /-- Per-variant descriptions. -/
+  variants : Array TaggedVariant
+  deriving Inhabited
+
+/-- A C unsigned/integer typedef where individual bits are meaningful
+flags, unpacked into a Lean `structure` of `Bool` fields. Each field
+tests `(val & mask) != 0`. The `mask` is a C enum constant looked up
+from the parsed header. -/
+structure BitfieldMapping where
+  /-- The C `enum` tag whose constants name the bit masks (e.g.
+  `clingo_solve_result`). -/
+  enumTag : String
+  /-- `(cEnumConstant, leanFieldName)` pairs, one per Bool field. -/
   fields : Array (String × String)
   deriving Inhabited
 
@@ -159,6 +217,13 @@ inductive TypeMapping
   marshals C args back into Lean values and invokes the closure via
   `lean_apply_*`. -/
   | callback
+  /-- A C struct with a tag enum + anonymous union becomes a Lean
+  `inductive` (or a wrapper structure + inner inductive when shared
+  fields exist). -/
+  | taggedUnion (mapping : TaggedUnionMapping)
+  /-- A C unsigned/int typedef whose bits are interpreted as flags,
+  unpacked into a Lean `structure` of `Bool` fields. -/
+  | bitfieldStruct (mapping : BitfieldMapping)
   deriving Inhabited
 
 structure TypeAnno where
@@ -169,6 +234,18 @@ structure TypeAnno where
   mapping : TypeMapping
   deriving Inhabited
 
+/-- How the error payload is constructed for `outParamBoolStatus`. -/
+inductive ErrorReturn
+  /-- Call `errorMessageFn()` → `char const *`, wrap as `Except String T`. -/
+  | string (errorMessageFn : String)
+  /-- Call `errorCodeFn()` → C enum, convert to Lean enum via helpers,
+  wrap as `Except <enumLean> T`. -/
+  | enum (errorCodeFn : String) (enumLean : String)
+  /-- Build `(enumLean × String)` from both an error code and a message
+  function, wrap as `Except (<enumLean> × String) T`. -/
+  | tuple (errorCodeFn : String) (enumLean : String) (errorMessageFn : String)
+  deriving Inhabited
+
 /-- How a C function's signature maps to Lean's. -/
 inductive FunctionStyle
   /-- Lean signature mirrors the C signature directly: return value of
@@ -177,9 +254,36 @@ inductive FunctionStyle
   /-- C function returns `bool`, true=success. The parameter at
   `outParamIdx` (0-based) is an out-pointer; its pointee becomes the
   Lean function's success value. On failure the result is an error
-  string read from `errorMessageFn` (a no-arg C function returning
-  `char const *`). The Lean return type becomes `IO (Except String T)`. -/
-  | outParamBoolStatus (outParamIdx : Nat) (errorMessageFn : String)
+  described by `error`. The Lean return type becomes
+  `IO (Except <ErrorTy> T)`. -/
+  | outParamBoolStatus (outParamIdx : Nat) (error : ErrorReturn)
+  /-- C function returns `bool`, true=success, but has no out-pointer.
+  The Lean return type becomes `IO (Except <ErrorTy> Unit)`. All
+  parameters are passed through; the bool return is consumed
+  internally. -/
+  | boolStatus (error : ErrorReturn)
+  /-- C function returns `bool` where `false` means "not applicable"
+  (not an error). The parameter at `outParamIdx` is an out-pointer;
+  its pointee becomes the Lean function's success value. The Lean
+  return type becomes `IO (Option T)` (or `Option T` if `inIO` is
+  false). -/
+  | optionOutParam (outParamIdx : Nat)
+  /-- C function returns `void` and writes its real result through an
+  out-pointer at `outParamIdx`. The function always succeeds (no error
+  path). The Lean return type is just the pointee type (or `IO T` if
+  `inIO` is true). -/
+  | voidOutParam (outParamIdx : Nat)
+  /-- C function returns `bool` with two out-params forming an array:
+  a data pointer at `ptrIdx` and a size at `sizeIdx`. On failure
+  (false), returns `Option.none`. On success, builds `Array T` from
+  the data/size and returns `Option.some(arr)`. -/
+  | optionOutArray (ptrIdx : Nat) (sizeIdx : Nat)
+  /-- Two-step caller-allocates pattern: first call `sizeFn` to get the
+  buffer size, then malloc and call the main function (`cName`). Both
+  must return `bool`. `bufIdx` and `sizeIdx` are the 0-based indices
+  of the buffer pointer and size parameters in the main function;
+  all other parameters are "shared" (passed to both calls). -/
+  | callerAllocates (sizeFn : String) (bufIdx : Nat) (sizeIdx : Nat) (error : ErrorReturn)
   deriving Inhabited
 
 structure FunctionAnno where
@@ -207,6 +311,28 @@ structure FunctionAnno where
   Lean closure pointer; the preceding callback parameter (which must
   be of a `.callback`-mapped typedef) becomes a single Lean closure. -/
   callbackUserDataParams : List Nat := []
+  /-- Pairs `(dataParamIdx, sizeParamIdx)` identifying C parameter
+  pairs of the form `(T const *data, size_t data_size)` that should
+  be presented as a single `Array T` on the Lean side. Both the data
+  pointer and the size parameter are dropped from the Lean signature
+  and replaced by a single `Array` argument at the data-pointer's
+  position. -/
+  arrayPairs : List (Nat × Nat) := []
+  /-- 0-based indices of parameters whose data is retained by the C
+  function beyond the call. For these parameters, the shim deep-copies
+  (malloc) nested struct payloads but does NOT free them in the postlude
+  — ownership is transferred to C. Default empty = C only borrows
+  during the call (shim frees deep-copied payloads after C returns). -/
+  retainedParams : List Nat := []
+  /-- When true, a direct-style function returning `char const *` maps
+  to `Option String` instead of `String`: NULL → `Option.none`, non-NULL
+  → `Option.some(lean_mk_string(…))`. -/
+  nullableReturn : Bool := false
+  /-- When true with `outParamBoolStatus`, the out-param pointer may be
+  NULL on success (e.g. `clingo_solve_handle_model` returns NULL when no
+  model is available). The Lean return type becomes
+  `IO (Except ErrorTy (Option T))` instead of `IO (Except ErrorTy T)`. -/
+  nullableOutParam : Bool := false
   deriving Inhabited
 
 /-- A complete bindgen specification: where the header is, where to

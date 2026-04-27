@@ -148,3 +148,24 @@ def main : IO Unit := do
   assertEq "loc.beginColumn" loc.beginColumn (7  : USize)
   assertEq "loc.endColumn"   loc.endColumn   (8  : USize)
   assertEq "lean→C→read endLine" (locationEndLine loc) (43 : USize)
+  -- Array+size pair exercise: mkFun wraps clingo_symbol_create_function
+  -- which takes (name, args, args_size, positive, *out). We use
+  -- parseTerm to create proper clingo_symbol_t values (not signatures)
+  -- and pass them as an Array to mkFun.
+  IO.println "\nlean-bindgen runtime check: array+size pair (mkFun)"
+  let noopLogger : Logger := fun _ _ => pure ()
+  match (← parseTerm "a" noopLogger 20), (← parseTerm "b" noopLogger 20) with
+  | .ok symA, .ok symB =>
+    let args : Array Symbol := #[symA, symB]
+    match (← mkFun "f" args true) with
+    | .ok funSym =>
+      IO.println s!"  ✓ mkFun \"f\" #[a, b] → Symbol {repr funSym}"
+      IO.println "  ✓ mkFun returned Ok (function symbol created)"
+    | .error e => IO.eprintln s!"  ✗ mkFun failed: {e}"
+    -- Also test with an empty array — a function with no arguments
+    -- is a valid clingo symbol (a constant/0-ary function).
+    match (← mkFun "g" #[] true) with
+    | .ok _emptySym =>
+      IO.println "  ✓ mkFun \"g\" #[] (empty array) → Ok"
+    | .error e => IO.eprintln s!"  ✗ mkFun empty failed: {e}"
+  | _, _ => IO.eprintln "  ✗ failed to create argument symbols via parseTerm"

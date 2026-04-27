@@ -299,7 +299,24 @@ partial def parseFieldBlock : ParserM (Array CField) := do
           | .intLit raw => advance; pure (some raw.toNat!)
           | _ => err "expected bitfield width"
         else pure none
-      fields := fields.push { name, type := ty, bitfield := bits? }
+      -- Flatten anonymous union/struct members: in C, members of an
+      -- anonymous union or struct are directly accessible from the
+      -- enclosing struct. We inline them here so downstream code can
+      -- look up fields by name without special-casing.
+      if name = "" && (ty matches .unionRef "" | .structRef "") then
+        let st ← get
+        -- The anonymous union/struct body was just parsed and pushed
+        -- to `decls`. Pop it and inline its fields.
+        match st.decls.back? with
+        | some (.unionDef none innerFields)
+        | some (.structDef none innerFields) =>
+          for f in innerFields do
+            fields := fields.push f
+          set { st with decls := st.decls.pop }
+        | _ =>
+          fields := fields.push { name, type := ty, bitfield := bits? }
+      else
+        fields := fields.push { name, type := ty, bitfield := bits? }
       if ← isPunct "," then advance else moreDeclarators := false
     consumePunct ";"
   consumePunct "}"

@@ -2,6 +2,7 @@ import LeanBindgen.C.Token
 import LeanBindgen.C.Parser
 import LeanBindgen.Codegen
 import Examples.ClingoSignature
+import Examples.ClingoFull
 
 open LeanBindgen LeanBindgen.C LeanBindgen.Codegen
 
@@ -9,6 +10,106 @@ open LeanBindgen LeanBindgen.C LeanBindgen.Codegen
 `examples/clingo-signature-runtime/` expects `Generated/Signature.lean`
 and `csrc/signature-shim.c` next to it. -/
 private def runtimeRoot : System.FilePath := "examples/clingo-signature-runtime"
+
+/-- Bindings for a synthetic deep-struct test that exercises pointer-to-
+struct fields (malloc in toC, dereference in toLean, free helpers). -/
+private def deepStructBindings : Bindings := {
+  headerPath := "test/deep_struct.h"
+  leanModule := `Generated.DeepStruct
+  outDir     := "/tmp"
+  shimPath   := "/tmp/deep-struct-shim.c"
+  libPrefix  := "test"
+  types := #[
+    { cName := "inner_t", lean := "Inner",
+      mapping := .structRecord {
+        cStructTag := "inner"
+        fields := #[("name", "name"), ("value", "value")]
+      } },
+    { cName := "outer_t", lean := "Outer",
+      mapping := .structRecord {
+        cStructTag := "outer"
+        fields := #[("label", "label"), ("child", "child"),
+                    ("embedded", "embedded"), ("count", "count")]
+      } }
+  ]
+}
+
+/-- Bindings for a recursive AST test that exercises array-in-struct
+fields and recursive C helper calls via forward declarations. -/
+private def recursiveAstBindings : Bindings := {
+  headerPath := "test/recursive_ast.h"
+  leanModule := `Generated.RecursiveAst
+  outDir     := "/tmp"
+  shimPath   := "/tmp/recursive-ast-shim.c"
+  libPrefix  := "test"
+  types := #[
+    { cName := "location_t", lean := "Loc",
+      mapping := .structRecord {
+        cStructTag := "location"
+        fields := #[("file", "file"), ("line", "line")]
+      } },
+    { cName := "function_node_t", lean := "FunctionNode",
+      mapping := .structRecord {
+        cStructTag := "function_node"
+        fields := #[("name", "name"), ("arguments", "arguments")]
+        arrayFields := #[("arguments", "size")]
+      } },
+    { cName := "unary_op_t", lean := "UnaryOp",
+      mapping := .structRecord {
+        cStructTag := "unary_op"
+        fields := #[("op", "op"), ("argument", "argument")]
+      } },
+    { cName := "term_t", lean := "Term",
+      mapping := .taggedUnion {
+        cStructTag := "term"
+        tagField := "type"
+        tagEnum  := "term_type"
+        sharedFields := #[("location", "location")]
+        variants := #[
+          { cTag := "term_type_symbol", leanCtor := "symbol",
+            unionField := "symbol" },
+          { cTag := "term_type_function", leanCtor := "function",
+            unionField := "function" },
+          { cTag := "term_type_unary_op", leanCtor := "unaryOp",
+            unionField := "unary_op" }
+        ]
+      } }
+  ]
+}
+
+/-- Bindings for a synthetic mixed-scalar struct that exercises Lean's
+ctor field reordering: pointer → USize → other scalars (descending size).
+
+C declaration order: name(str), count(u32), offset(usize), flag(u8),
+tag(str), length(usize), kind(u16).
+
+Expected Lean runtime layout:
+  boxed:  name(0), tag(1)           — pointer slots
+  USize:  offset(2), length(3)      — slot indices
+  scalar: count(@32), kind(@36), flag(@38)  — byte offsets
+-/
+private def mixedScalarBindings : Bindings := {
+  headerPath := "test/mixed_scalars.h"
+  leanModule := `Generated.MixedScalars
+  outDir     := "/tmp"
+  shimPath   := "/tmp/mixed-scalars-shim.c"
+  libPrefix  := "test"
+  types := #[
+    { cName := "mixed_scalars_t", lean := "MixedScalars",
+      mapping := .structRecord {
+        cStructTag := "mixed_scalars"
+        fields := #[
+          ("name",   "name"),
+          ("count",  "count"),
+          ("offset", "offset"),
+          ("flag",   "flag"),
+          ("tag",    "tag"),
+          ("length", "length"),
+          ("kind",   "kind")
+        ]
+      } }
+  ]
+}
 
 def main : IO Unit := do
   let path := clingoSignatureBindings.headerPath
@@ -32,10 +133,9 @@ def main : IO Unit := do
   IO.FS.writeFile shimFile shimText
   IO.println s!"\nwrote {leanFile} ({leanText.length} bytes)"
   IO.println s!"wrote {shimFile} ({shimText.length} bytes)"
-  -- Quick syntax check on the shim: confirms it still typechecks
-  -- against the system clingo.h and the Lean runtime headers.
   let leanPrefix ← IO.Process.output { cmd := "lean", args := #["--print-prefix"] }
   let leanIncPath := s!"{leanPrefix.stdout.trim}/include"
+  -- Validate main shim against system clingo.h.
   let out ← IO.Process.output {
     cmd := "cc"
     args := #["-fsyntax-only", "-I", leanIncPath,
@@ -47,3 +147,190 @@ def main : IO Unit := do
   else
     IO.eprintln s!"✗ shim compile failed (exit {out.exitCode}):"
     IO.eprintln out.stderr
+  -- === Tagged union codegen test (reference header only) ===
+  IO.println "\n=== Tagged union codegen test ==="
+  let tuLean ← IO.ofExcept (emitLeanModule taggedUnionBindings header)
+  let tuShim ← IO.ofExcept (emitShim taggedUnionBindings header)
+  IO.println tuLean
+  IO.println tuShim
+  let refIncPath := "reference/cleango/bindings"
+  let tuShimFile : System.FilePath := "/tmp/tagged-union-shim.c"
+  IO.FS.writeFile tuShimFile tuShim
+  let tuOut ← IO.Process.output {
+    cmd := "cc"
+    args := #["-fsyntax-only", "-I", leanIncPath,
+              "-I", refIncPath,
+              tuShimFile.toString]
+  }
+  if tuOut.exitCode = 0 then
+    IO.println "✓ tagged-union shim compiles against reference clingo.h"
+  else
+    IO.eprintln s!"✗ tagged-union shim compile failed (exit {tuOut.exitCode}):"
+    IO.eprintln tuOut.stderr
+  -- === Mixed-scalar struct layout test ===
+  IO.println "\n=== Mixed-scalar struct layout test ==="
+  let msPath := mixedScalarBindings.headerPath
+  let msSrc ← IO.FS.readFile msPath
+  let msToks ← IO.ofExcept (tokenize msSrc)
+  let msHeader ← IO.ofExcept (parseHeader msToks)
+  let msShim ← IO.ofExcept (emitShim mixedScalarBindings msHeader)
+  IO.println msShim
+  -- Verify the generated shim has the correct Lean ctor layout.
+  -- Expected layout (64-bit):
+  --   boxed:  name→slot 0, tag→slot 1
+  --   USize:  offset→slot 2, length→slot 3
+  --   scalar: count(u32)→@32, kind(u16)→@36, flag(u8)→@38
+  let mut ok := true
+  let checks := #[
+    -- lean_alloc_ctor(0, num_objs=2, scalar_sz=23)
+    -- scalar_sz = 2*8 (usize) + 4 (u32) + 2 (u16) + 1 (u8) = 23
+    ("lean_alloc_ctor(0, 2, 23)", "ctor alloc: 2 boxed, 23 scalar bytes"),
+    -- Boxed fields in declaration order.
+    ("lean_ctor_set(o, 0, lean_mk_string(v.name", "name → boxed slot 0"),
+    ("lean_ctor_set(o, 1, lean_mk_string(v.tag",  "tag → boxed slot 1"),
+    -- USize fields: slot indices = num_objs + j.
+    ("lean_ctor_set_usize(o, 2, (size_t)v.offset)", "offset → USize slot 2"),
+    ("lean_ctor_set_usize(o, 3, (size_t)v.length)", "length → USize slot 3"),
+    -- Other scalars by descending size, byte offset starts at (2+2)*8=32.
+    ("lean_ctor_set_uint32(o, 32,", "count(u32) → byte offset 32"),
+    ("lean_ctor_set_uint16(o, 36,", "kind(u16) → byte offset 36"),
+    ("lean_ctor_set_uint8(o, 38,",  "flag(u8) → byte offset 38")
+  ]
+  for (pattern, desc) in checks do
+    if (msShim.splitOn pattern).length > 1 then
+      IO.println s!"  ✓ {desc}"
+    else
+      IO.eprintln s!"  ✗ {desc} — pattern not found: {pattern}"
+      ok := false
+  if ok then
+    IO.println "✓ all mixed-scalar layout checks passed"
+  else
+    IO.eprintln "✗ some mixed-scalar layout checks failed"
+  -- === Deep-struct codegen test ===
+  IO.println "\n=== Deep-struct codegen test ==="
+  let dsPath := deepStructBindings.headerPath
+  let dsSrc ← IO.FS.readFile dsPath
+  let dsToks ← IO.ofExcept (tokenize dsSrc)
+  let dsHeader ← IO.ofExcept (parseHeader dsToks)
+  let dsLean ← IO.ofExcept (emitLeanModule deepStructBindings dsHeader)
+  let dsShim ← IO.ofExcept (emitShim deepStructBindings dsHeader)
+  IO.println dsLean
+  IO.println dsShim
+  -- Verify key patterns in the generated shim.
+  let mut dsOk := true
+  let dsChecks := #[
+    -- malloc for pointer-to-struct child field in lean_to_outer
+    ("malloc(sizeof(inner_t))", "malloc for child ptr-to-struct"),
+    -- dereference in outer_to_lean
+    ("*v.child", "dereference child in toLean"),
+    -- free_inner called on child in free_outer
+    ("free_inner", "free_inner called in free_outer"),
+    -- free((void *)p->child) in free_outer
+    ("free((void *)p->child)", "free child pointer in free_outer"),
+    -- free_inner(&p->embedded) for by-value nested struct
+    ("free_inner(&p->embedded)", "free_inner on embedded in free_outer"),
+    -- #include <stdlib.h> present
+    ("#include <stdlib.h>", "stdlib.h included for malloc/free")
+  ]
+  for (pattern, desc) in dsChecks do
+    if (dsShim.splitOn pattern).length > 1 then
+      IO.println s!"  ✓ {desc}"
+    else
+      IO.eprintln s!"  ✗ {desc} — pattern not found: {pattern}"
+      dsOk := false
+  -- Compile the shim with cc -fsyntax-only.
+  let dsShimFile : System.FilePath := "/tmp/deep-struct-shim.c"
+  IO.FS.writeFile dsShimFile dsShim
+  let dsOut ← IO.Process.output {
+    cmd := "cc"
+    args := #["-fsyntax-only", "-I", leanIncPath,
+              "-I", "test",
+              dsShimFile.toString]
+  }
+  if dsOut.exitCode = 0 then
+    IO.println "  ✓ deep-struct shim compiles (cc -fsyntax-only)"
+  else
+    IO.eprintln s!"  ✗ deep-struct shim compile failed (exit {dsOut.exitCode}):"
+    IO.eprintln dsOut.stderr
+    dsOk := false
+  if dsOk then
+    IO.println "✓ all deep-struct checks passed"
+  else
+    IO.eprintln "✗ some deep-struct checks failed"
+  -- === Recursive AST codegen test ===
+  IO.println "\n=== Recursive AST codegen test ==="
+  let raPath := recursiveAstBindings.headerPath
+  let raSrc ← IO.FS.readFile raPath
+  let raToks ← IO.ofExcept (tokenize raSrc)
+  let raHeader ← IO.ofExcept (parseHeader raToks)
+  let raLean ← IO.ofExcept (emitLeanModule recursiveAstBindings raHeader)
+  let raShim ← IO.ofExcept (emitShim recursiveAstBindings raHeader)
+  IO.println raLean
+  IO.println raShim
+  let mut raOk := true
+  let raChecks := #[
+    -- Array-in-struct: lean_array_push loop in function_node_to_lean
+    ("lean_array_push", "array push loop in toLean"),
+    -- Array-in-struct: malloc buffer in lean_to_function_node
+    ("lean_to_array(lean_ctor_get", "array extraction in toC"),
+    -- Free helper: per-element free + free buffer
+    ("free_term", "free_term called (recursive free)"),
+    -- Forward declarations present
+    ("// Forward declarations", "forward declarations emitted"),
+    -- Recursive: unary_op helper calls lean_to_term / term_to_lean
+    ("lean_to_term(", "lean_to_term called (recursive toC)"),
+    ("term_to_lean(", "term_to_lean called (recursive toLean)"),
+    -- stdlib included
+    ("#include <stdlib.h>", "stdlib.h included")
+  ]
+  for (pattern, desc) in raChecks do
+    if (raShim.splitOn pattern).length > 1 then
+      IO.println s!"  ✓ {desc}"
+    else
+      IO.eprintln s!"  ✗ {desc} — pattern not found: {pattern}"
+      raOk := false
+  -- Compile the shim with cc -fsyntax-only.
+  let raShimFile : System.FilePath := "/tmp/recursive-ast-shim.c"
+  IO.FS.writeFile raShimFile raShim
+  let raOut ← IO.Process.output {
+    cmd := "cc"
+    args := #["-fsyntax-only", "-I", leanIncPath,
+              "-I", "test",
+              raShimFile.toString]
+  }
+  if raOut.exitCode = 0 then
+    IO.println "  ✓ recursive AST shim compiles (cc -fsyntax-only)"
+  else
+    IO.eprintln s!"  ✗ recursive AST shim compile failed (exit {raOut.exitCode}):"
+    IO.eprintln raOut.stderr
+    raOk := false
+  if raOk then
+    IO.println "✓ all recursive AST checks passed"
+  else
+    IO.eprintln "✗ some recursive AST checks failed"
+  -- === Full cleango codegen test ===
+  IO.println "\n=== Full cleango codegen test ==="
+  let fullPath := clingoFullBindings.headerPath
+  let fullSrc ← IO.FS.readFile fullPath
+  let fullToks ← IO.ofExcept (tokenize fullSrc)
+  let fullHeader ← IO.ofExcept (parseHeader fullToks)
+  IO.println s!"  parsed {fullHeader.decls.size} decls from reference header"
+  let fullLean ← IO.ofExcept (emitLeanModule clingoFullBindings fullHeader)
+  let fullShim ← IO.ofExcept (emitShim clingoFullBindings fullHeader)
+  IO.println s!"  generated Lean: {fullLean.length} bytes"
+  IO.println s!"  generated C shim: {fullShim.length} bytes"
+  let fullShimFile : System.FilePath := "/tmp/clingo-full-shim.c"
+  IO.FS.writeFile fullShimFile fullShim
+  let fullLeanFile : System.FilePath := "/tmp/ClingoFull.lean"
+  IO.FS.writeFile fullLeanFile fullLean
+  let fullOut ← IO.Process.output {
+    cmd := "cc"
+    args := #["-fsyntax-only", "-I", leanIncPath,
+              "-I", refIncPath,
+              fullShimFile.toString]
+  }
+  if fullOut.exitCode = 0 then
+    IO.println "✓ full cleango shim compiles against reference clingo.h"
+  else
+    IO.eprintln s!"✗ full cleango shim compile failed (exit {fullOut.exitCode}):"
+    IO.eprintln fullOut.stderr

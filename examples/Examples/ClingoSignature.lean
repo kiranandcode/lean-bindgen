@@ -81,7 +81,7 @@ def clingoSignatureBindings : Bindings := {
     -- The constructor: `bool clingo_signature_create(name, arity, positive, *out)`.
     { cName := "clingo_signature_create"
       lean  := "mk"
-      style := .outParamBoolStatus 3 "clingo_error_message" },
+      style := .outParamBoolStatus 3 (.string "clingo_error_message") },
     -- Direct-style accessors.
     { cName := "clingo_signature_name",         lean := "name" },
     { cName := "clingo_signature_arity",        lean := "arity" },
@@ -108,7 +108,78 @@ def clingoSignatureBindings : Bindings := {
     -- and emits the trampoline + closure-pointer pair automatically.
     { cName := "clingo_parse_term"
       lean  := "parseTerm"
-      style := .outParamBoolStatus 4 "clingo_error_message"
-      callbackUserDataParams := [2] }
+      style := .outParamBoolStatus 4 (.string "clingo_error_message")
+      callbackUserDataParams := [2] },
+    -- Array+size pair exercise: clingo_symbol_create_function takes
+    --   (name, arguments, arguments_size, positive, *symbol)
+    -- where params 1,2 are a (data, size) pair. The codegen collapses
+    -- them into a single `Array Symbol` on the Lean side.
+    { cName := "clingo_symbol_create_function"
+      lean  := "mkFun"
+      style := .outParamBoolStatus 4 (.string "clingo_error_message")
+      arrayPairs := [(1, 2)] }
+  ]
+}
+
+/-- Separate codegen-only bindings for tagged-union exercise.
+Uses types from the clingo v4.5 reference header that don't exist in
+the system clingo v5.8, so this can't go through the runtime link test
+— but it validates the codegen + C syntax-check against the reference
+header. -/
+def taggedUnionBindings : Bindings := {
+  headerPath := "reference/cleango/bindings/clingo.h"
+  leanModule := `Generated.TaggedUnion
+  outDir     := ".lake/build/generated"
+  shimPath   := ".lake/build/generated/tagged-union-shim.c"
+  libPrefix  := "clingo"
+  types := #[
+    -- Re-declare Location (needed as a shared field).
+    { cName := "clingo_location_t", lean := "Location",
+      mapping := .structRecord {
+        cStructTag := "clingo_location"
+        fields := #[
+          ("begin_file",   "beginFile"),
+          ("end_file",     "endFile"),
+          ("begin_line",   "beginLine"),
+          ("end_line",     "endLine"),
+          ("begin_column", "beginColumn"),
+          ("end_column",   "endColumn")
+        ]
+      } },
+    { cName := "clingo_ast_sign_t", lean := "Sign",
+      mapping := .inductiveEnum {
+        enumTag  := "clingo_ast_sign"
+        variants := #[
+          ("clingo_ast_sign_none",            "none"),
+          ("clingo_ast_sign_negation",        "negation"),
+          ("clingo_ast_sign_double_negation", "doubleNegation")
+        ]
+      } },
+    { cName := "clingo_ast_term_t", lean := "AstTerm",
+      mapping := .opaquePointer "free" },
+    { cName := "clingo_ast_comparison_t", lean := "AstComparison",
+      mapping := .opaquePointer "free" },
+    { cName := "clingo_ast_csp_literal_t", lean := "AstCspLiteral",
+      mapping := .opaquePointer "free" },
+    { cName := "clingo_ast_literal_t", lean := "AstLiteral",
+      mapping := .taggedUnion {
+        cStructTag := "clingo_ast_literal"
+        tagField   := "type"
+        tagEnum    := "clingo_ast_literal_type"
+        sharedFields := #[
+          ("location", "location"),
+          ("sign",     "sign")
+        ]
+        variants := #[
+          { cTag := "clingo_ast_literal_type_boolean",    leanCtor := "boolean",
+            unionField := "boolean" },
+          { cTag := "clingo_ast_literal_type_symbolic",   leanCtor := "symbolic",
+            unionField := "symbol" },
+          { cTag := "clingo_ast_literal_type_comparison", leanCtor := "comparison",
+            unionField := "comparison" },
+          { cTag := "clingo_ast_literal_type_csp",        leanCtor := "csp",
+            unionField := "csp_literal" }
+        ]
+      } }
   ]
 }
