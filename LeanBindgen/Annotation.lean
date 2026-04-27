@@ -150,6 +150,15 @@ inductive TypeMapping
   helpers in the shim that move between the C struct and Lean's ctor
   representation. -/
   | structRecord (mapping : StructMapping)
+  /-- A C function-pointer typedef (e.g. `clingo_logger_t`) becomes a
+  Lean closure type. The Lean type is auto-derived from the C
+  function-pointer signature: each non-`void *` parameter is resolved
+  via the same rules used for regular function parameters; the
+  trailing `void *` is taken as the user-data slot and is *not*
+  exposed to Lean. The codegen emits a per-callback trampoline that
+  marshals C args back into Lean values and invokes the closure via
+  `lean_apply_*`. -/
+  | callback
   deriving Inhabited
 
 structure TypeAnno where
@@ -192,6 +201,12 @@ structure FunctionAnno where
   when the bindings author prefers a Lean-side naming convention like
   `lean_<libPrefix>_<short>` (e.g. `lean_clingo_signature_mk`). -/
   externSymbol : Option String := none
+  /-- 0-based indices of `void *` parameters that are the user-data
+  slots paired with a preceding callback parameter. These are dropped
+  from the Lean signature and supplied by the codegen as the boxed
+  Lean closure pointer; the preceding callback parameter (which must
+  be of a `.callback`-mapped typedef) becomes a single Lean closure. -/
+  callbackUserDataParams : List Nat := []
   deriving Inhabited
 
 /-- A complete bindgen specification: where the header is, where to

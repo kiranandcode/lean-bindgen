@@ -56,6 +56,13 @@ inductive ParamMarshal
   `byPointer` flag controls whether the call site passes the local
   by address (`&`) or by value. -/
   | fromLeanStruct (helperFn : String) (cType : String) (byPointer : Bool)
+  /-- A Lean closure passed as a callback. The shim takes a single
+  `b_lean_obj_arg` (the closure) and must `lean_inc` it before the
+  call and `lean_dec` after. At the call site the C ABI takes a
+  function pointer (the named trampoline) and a `void *` user-data
+  (the closure pointer); the function-shim emitter knows to emit
+  *both* and to skip the matching user-data param of the C function. -/
+  | callback (trampolineFn : String)
   deriving Inhabited
 
 /-- How a C return value of this resolved type gets transformed in
@@ -150,6 +157,10 @@ private def structHelperNames (lean : String) : String × String :=
   let snake := toSnake lean
   (s!"lean_to_{snake}", s!"{snake}_to_lean")
 
+/-- The trampoline function name for a callback typedef. -/
+private def callbackTrampolineName (cTypedef : String) : String :=
+  s!"{cTypedef}_trampoline"
+
 /-- Constructor for a Lean structure mapping when the C function uses
 the value by-pointer (typical: `T const *` parameter, or `T *out`
 out-parameter). -/
@@ -170,6 +181,15 @@ private def structByValRT (leanName cTypedef : String) : ResolvedType :=
     isLeanObj := true,
     paramMarshal  := .fromLeanStruct toC cTypedef false,
     returnMarshal := .toLeanStruct toLean }
+
+/-- Constructor for a callback-typedef mapping. The shim parameter is
+the boxed Lean closure; the trampoline is the C function pointer that
+gets wired up at the C call site. -/
+private def callbackRT (leanName cTypedef : String) : ResolvedType :=
+  { leanType := leanName, shimParam := "b_lean_obj_arg",
+    shimReturn := "lean_obj_res", cLocalType := cTypedef,
+    isLeanObj := true,
+    paramMarshal := .callback (callbackTrampolineName cTypedef) }
 
 /-- Constructor for an opaque-pointer mapping. The C-side value is a
 `<typedef> *` wrapped as a Lean external object; the shim extracts via
@@ -243,6 +263,7 @@ partial def resolveType
       | .opaquePointer _ => .ok (opaqueRT a.lean name)
       | .inductiveEnum _ => .ok (enumRT a.lean name)
       | .structRecord _  => .ok (structByValRT a.lean name)
+      | .callback        => .ok (callbackRT a.lean name)
     | none =>
       match stdintMap[name]? with
       | some r => .ok r
@@ -263,6 +284,7 @@ partial def resolveType
         .ok { leanType := a.lean, shimParam := name ++ " *",
               shimReturn := name ++ " *", cLocalType := name }
       | .structRecord _ => .ok (structByPtrRT a.lean name)
+      | .callback => .error s!"`{name}` is a callback typedef; pointers to callbacks are not supported"
     | none => .error s!"unmapped pointer-to-typedef `{name}`"
   -- Pointer to const-typedef — common shape for struct parameters
   -- like `clingo_part_t const *`. The outer `const` form is already
@@ -399,6 +421,12 @@ private def emitTypeDecl
         let ty := fieldTypes[leanF]?.getD "Unit"
         s!"  {leanF} : {ty}"))
     s!"structure {ta.lean} where\n{fields}\n  deriving Repr, Inhabited"
+  | .callback =>
+    -- The Lean arrow type goes here; the caller threads it in via
+    -- `fieldTypes` with the synthetic key `"__callback__"` (a hack to
+    -- avoid changing every `emitTypeDecl` call site).
+    let arrow := fieldTypes["__callback__"]?.getD "Unit"
+    s!"def {ta.lean} := {arrow}"
 
 /-- Generate the entire Lean module text. -/
 def emitLeanModule (b : Bindings) (h : CHeader) : Except String String := do
@@ -452,22 +480,31 @@ private def shimParamList
     let baseName := (params[i]?.bind (·.name)).getD s!"arg{i}"
     s!"{r.shimParam} {baseName}"
 
-/-- Render `(prelude, expr)` for one shim parameter, dispatching on
-its `paramMarshal`. The `prelude` lines (if any) declare locals; the
-`expr` is what gets passed to the underlying C call. -/
+/-- Render `(prelude, exprs, postlude)` for one shim parameter.
+For most kinds `exprs` is a single string; for callbacks it's two
+(the trampoline pointer and the boxed closure cast to `void *`),
+covering the C function's matching `(callback, user_data)` pair. The
+function shim emitter is expected to drop the corresponding user-data
+slot from the C call's argument list (using `callbackUserDataParams`).
+
+`postlude` contains cleanup statements that run after the C call —
+currently only used to `lean_dec` borrowed callback closures. -/
 private def renderParamPass (r : ResolvedType) (nm : String)
-    : Array String × String :=
+    : Array String × Array String × Array String :=
   match r.paramMarshal with
-  | .passthrough            => (#[], nm)
+  | .passthrough            => (#[], #[nm], #[])
   | .leanString             =>
-      (#[s!"  char const *{nm}_c = lean_string_cstr({nm});"], s!"{nm}_c")
+      (#[s!"  char const *{nm}_c = lean_string_cstr({nm});"], #[s!"{nm}_c"], #[])
   | .enumHelper fn          =>
-      (#[s!"  {r.cLocalType} {nm}_c = {fn}({nm});"], s!"{nm}_c")
+      (#[s!"  {r.cLocalType} {nm}_c = {fn}({nm});"], #[s!"{nm}_c"], #[])
   | .externalData cTy       =>
-      (#[s!"  {cTy} {nm}_c = ({cTy}) lean_get_external_data({nm});"], s!"{nm}_c")
+      (#[s!"  {cTy} {nm}_c = ({cTy}) lean_get_external_data({nm});"], #[s!"{nm}_c"], #[])
   | .fromLeanStruct fn cTy byPtr =>
       let prelude := #[s!"  {cTy} {nm}_c = {fn}({nm});"]
-      (prelude, if byPtr then s!"&{nm}_c" else s!"{nm}_c")
+      (prelude, #[if byPtr then s!"&{nm}_c" else s!"{nm}_c"], #[])
+  | .callback trampoline =>
+      (#[s!"  lean_inc({nm});"], #[trampoline, s!"(void*){nm}"],
+       #[s!"  lean_dec({nm});"])
 
 /-- The C expression that turns the C-call result into a Lean object
 (prior to any IO wrapping). For non-IO returns whose Lean type *isn't*
@@ -510,25 +547,52 @@ private def renderReturn (retRes : ResolvedType) (callExpr : String) (inIO : Boo
     | "Bool" => s!"return lean_io_result_mk_ok(lean_box({callExpr} ? 1 : 0));"
     | _      => s!"return lean_io_result_mk_ok(lean_box_uint64((uint64_t)({callExpr})));"
 
-/-- Emit the body of a "direct" shim: marshal each parameter, call the
-underlying C function, marshal the result. -/
+/-- Emit the body of a "direct" shim: marshal each Lean parameter,
+call the underlying C function, marshal the result. -/
 private def directShimBody
-    (decl : CDecl) (resolved : Array ResolvedType)
+    (decl : CDecl) (fa : FunctionAnno)
+    (resolved : Array ResolvedType)
     (retRes : ResolvedType) (cName : String) (inIO : Bool)
     : String := Id.run do
   let .function _name _ret params _variadic := decl
     | return "/* not a function */"
-  let mut prelude : Array String := #[]
+  let mut prelude  : Array String := #[]
+  let mut postlude : Array String := #[]
   let mut callArgs : Array String := #[]
+  -- Iterate Lean parameters (which mirror C parameters EXCEPT for
+  -- those listed in `callbackUserDataParams` — those are filled in
+  -- automatically as the trailing `(void*)<closure>` of a callback).
   for h : i in [:resolved.size] do
+    if fa.callbackUserDataParams.contains i then continue
     let r := resolved[i]
     let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
-    let (pre, expr) := renderParamPass r nm
-    prelude := prelude ++ pre
-    callArgs := callArgs.push expr
+    let (pre, exprs, post) := renderParamPass r nm
+    prelude  := prelude ++ pre
+    postlude := postlude ++ post
+    callArgs := callArgs ++ exprs
   let callExpr := s!"{cName}({", ".intercalate callArgs.toList})"
-  let preludeStr := if prelude.isEmpty then "" else "\n".intercalate prelude.toList ++ "\n"
-  preludeStr ++ "  " ++ renderReturn retRes callExpr inIO
+  let preludeStr  := if prelude.isEmpty  then "" else "\n".intercalate prelude.toList  ++ "\n"
+  let postludeStr := if postlude.isEmpty then "" else "\n" ++ "\n".intercalate postlude.toList
+  -- The current renderReturn is statement-level (it includes
+  -- `return ...;`) so postlude statements need to be inlined into a
+  -- temporary-result pattern when present. For simplicity, when we
+  -- have postlude work, we capture the call result, run postlude,
+  -- then return.
+  if postlude.isEmpty then
+    preludeStr ++ "  " ++ renderReturn retRes callExpr inIO
+  else
+    -- Save call result to a temp, run postlude, then return. This is
+    -- safe for void/Unit (we just emit the call, then postlude, then
+    -- the void return). For value-returning calls the temporary is
+    -- of `retRes.shimReturn`-like type — but for the common
+    -- callback case the call returns void/Unit, so this path covers
+    -- the only currently-needed case.
+    preludeStr ++
+    s!"  {callExpr};\n" ++
+    postludeStr.trim ++ "\n" ++
+    (match retRes.leanType with
+     | "Unit" => if inIO then "  return lean_io_result_mk_ok(lean_box(0));" else "  return;"
+     | _      => "  /* TODO: postlude with non-void return */")
 
 /-- Emit one shim function for an annotation. -/
 private def emitShimFunction
@@ -545,7 +609,12 @@ private def emitShimFunction
   let externSym := externSymbolOf fa
   match fa.style with
   | .direct =>
-    let plist := shimParamList params allRes
+    -- Drop user-data params from the shim signature (they're
+    -- supplied at the C call site by the matching callback param).
+    let visiblePairs := allRes.zipIdx.filter (fun (_, i) => !fa.callbackUserDataParams.contains i)
+    let plist := visiblePairs.map (fun (r, i) =>
+      let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
+      s!"{r.shimParam} {nm}")
     -- Pick shim return type:
     let cRet :=
       if inIO then "lean_obj_res"
@@ -555,7 +624,7 @@ private def emitShimFunction
         | "String" => "lean_obj_res"
         | "Bool"   => "uint8_t"
         | _        => retRes.shimReturn
-    let body := directShimBody decl allRes retRes fa.cName inIO
+    let body := directShimBody decl fa allRes retRes fa.cName inIO
     return s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
            body ++ "\n}"
   | .outParamBoolStatus outIdx errMsgFn =>
@@ -566,23 +635,32 @@ private def emitShimFunction
       let .pointer pointee := params[outIdx].type
         | .error "out-param is not a pointer (shim)"
       let pointeeRes ← resolveType anno pointee
-      -- Build visible params.
-      let visible := allRes.zipIdx.filter (fun (_, i) => i ≠ outIdx)
+      -- Build visible params: drop the out-param and any callback
+      -- user-data slots (those are emitted by the matching callback
+      -- param's marshalling).
+      let visible := allRes.zipIdx.filter (fun (_, i) =>
+        i ≠ outIdx && !fa.callbackUserDataParams.contains i)
       let plist := visible.map (fun (r, i) =>
         let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
         s!"{r.shimParam} {nm}")
-      let mut prelude : Array String := #[]
+      let mut prelude  : Array String := #[]
+      let mut postlude : Array String := #[]
       let mut callArgs : Array String := #[]
       for h : i in [:allRes.size] do
         let r := allRes[i]
         let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
         if i = outIdx then
           callArgs := callArgs.push s!"&{outName}"
+        else if fa.callbackUserDataParams.contains i then
+          -- Filled in by the preceding callback param.
+          continue
         else
-          let (pre, expr) := renderParamPass r nm
-          prelude := prelude ++ pre
-          callArgs := callArgs.push expr
-      let preludeStr := "\n".intercalate prelude.toList
+          let (pre, exprs, post) := renderParamPass r nm
+          prelude  := prelude ++ pre
+          postlude := postlude ++ post
+          callArgs := callArgs ++ exprs
+      let preludeStr  := "\n".intercalate prelude.toList
+      let postludeStr := "\n".intercalate postlude.toList
       -- Local type for the out-param. For an opaque-pointer out-param
       -- the C function expects `clingo_X_t **`, so we declare
       -- `clingo_X_t *<name> = NULL;` and pass `&<name>`.
@@ -604,10 +682,12 @@ private def emitShimFunction
           s!"{fn}({outName})"
         | .passthrough =>
           s!"lean_box_uint64((uint64_t){outName})"
+      let postBlock :=
+        if postludeStr = "" then "" else postludeStr ++ "\n      "
       let okBlock :=
-        s!"\{\n      lean_object* val = {valExpr};\n      lean_object* ok = lean_alloc_ctor(1, 1, 0);\n      lean_ctor_set(ok, 0, val);\n      return lean_io_result_mk_ok(ok);\n    }"
+        s!"\{\n      {postBlock}lean_object* val = {valExpr};\n      lean_object* ok = lean_alloc_ctor(1, 1, 0);\n      lean_ctor_set(ok, 0, val);\n      return lean_io_result_mk_ok(ok);\n    }"
       let errBlock :=
-        s!"\{\n      char const *msg = {errMsgFn}();\n      if (msg == NULL) msg = \"\";\n      lean_object* err = lean_alloc_ctor(0, 1, 0);\n      lean_ctor_set(err, 0, lean_mk_string(msg));\n      return lean_io_result_mk_ok(err);\n    }"
+        s!"\{\n      {postBlock}char const *msg = {errMsgFn}();\n      if (msg == NULL) msg = \"\";\n      lean_object* err = lean_alloc_ctor(0, 1, 0);\n      lean_ctor_set(err, 0, lean_mk_string(msg));\n      return lean_io_result_mk_ok(err);\n    }"
       return s!"LEAN_EXPORT lean_obj_res {externSym}({", ".intercalate plist.toList}) \{\n" ++
              outDecl ++ "\n" ++
              (if preludeStr = "" then "" else preludeStr ++ "\n") ++
