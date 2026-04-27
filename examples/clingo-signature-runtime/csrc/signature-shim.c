@@ -26,6 +26,32 @@ static uint8_t error_to_lean(clingo_error_t v) {
   }
 }
 
+static clingo_warning_t lean_to_warning(uint8_t cidx) {
+  switch (cidx) {
+    case 0: return clingo_warning_operation_undefined;
+    case 1: return clingo_warning_runtime_error;
+    case 2: return clingo_warning_atom_undefined;
+    case 3: return clingo_warning_file_included;
+    case 4: return clingo_warning_variable_unbounded;
+    case 5: return clingo_warning_global_variable;
+    case 6: return clingo_warning_other;
+    default: return (clingo_warning_t)0;
+  }
+}
+
+static uint8_t warning_to_lean(clingo_warning_t v) {
+  switch (v) {
+    case clingo_warning_operation_undefined: return 0;
+    case clingo_warning_runtime_error: return 1;
+    case clingo_warning_atom_undefined: return 2;
+    case clingo_warning_file_included: return 3;
+    case clingo_warning_variable_unbounded: return 4;
+    case clingo_warning_global_variable: return 5;
+    case clingo_warning_other: return 6;
+    default: return 0;
+  }
+}
+
 static void finalize_control(void *ptr) { clingo_control_free((clingo_control_t *)ptr); }
 static lean_external_class *g_control_class = NULL;
 lean_external_class *get_control_class() {
@@ -55,6 +81,15 @@ clingo_location_t lean_to_location(b_lean_obj_arg obj) {
   v.begin_column = (size_t)lean_ctor_get_usize(obj, 4);
   v.end_column = (size_t)lean_ctor_get_usize(obj, 5);
   return v;
+}
+
+void clingo_logger_t_trampoline(clingo_warning_t code, char const *message, void *data) {
+  lean_object* closure = (lean_object*)data;
+  lean_object* _lean_0 = lean_box(warning_to_lean(code));
+  lean_object* _lean_1 = lean_mk_string(message == NULL ? "" : message);
+  lean_inc(closure);
+  lean_object* _result = lean_apply_3(closure, _lean_0, _lean_1, lean_io_mk_world());
+  lean_dec(_result);
 }
 
 LEAN_EXPORT lean_obj_res lean_clingo_signature_create(b_lean_obj_arg name, uint32_t arity, uint8_t positive) {
@@ -117,4 +152,24 @@ LEAN_EXPORT lean_obj_res lean_clingo_control_interrupt(b_lean_obj_arg control) {
   clingo_control_t * control_c = (clingo_control_t *) lean_get_external_data(control);
   clingo_control_interrupt(control_c);
   return lean_io_result_mk_ok(lean_box(0));
+}
+
+LEAN_EXPORT lean_obj_res lean_clingo_parse_term(b_lean_obj_arg string, b_lean_obj_arg logger, uint32_t message_limit) {
+  uint64_t symbol;
+  char const *string_c = lean_string_cstr(string);
+  lean_inc(logger);
+  if (clingo_parse_term(string_c, clingo_logger_t_trampoline, (void*)logger, message_limit, &symbol)) {
+        lean_dec(logger);
+      lean_object* val = lean_box_uint64((uint64_t)symbol);
+      lean_object* ok = lean_alloc_ctor(1, 1, 0);
+      lean_ctor_set(ok, 0, val);
+      return lean_io_result_mk_ok(ok);
+    } else {
+        lean_dec(logger);
+      char const *msg = clingo_error_message();
+      if (msg == NULL) msg = "";
+      lean_object* err = lean_alloc_ctor(0, 1, 0);
+      lean_ctor_set(err, 0, lean_mk_string(msg));
+      return lean_io_result_mk_ok(err);
+    }
 }

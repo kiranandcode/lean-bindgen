@@ -51,7 +51,31 @@ def clingoSignatureBindings : Bindings := {
           ("begin_column", "beginColumn"),
           ("end_column",   "endColumn")
         ]
-      } }
+      } },
+    -- A second symbol-of-uint64 typedef so we can bind functions that
+    -- take symbols (e.g. clingo_parse_term).
+    { cName := "clingo_symbol_t", lean := "Symbol",
+      mapping := .scalarNewtype .uint64 },
+    -- Warning enum used by the logger callback.
+    { cName := "clingo_warning_t", lean := "Warning",
+      mapping := .inductiveEnum {
+        enumTag  := "clingo_warning"
+        variants := #[
+          ("clingo_warning_operation_undefined",         "operationUndefined"),
+          ("clingo_warning_runtime_error",               "runtimeError"),
+          ("clingo_warning_atom_undefined",              "atomUndefined"),
+          ("clingo_warning_file_included",               "fileIncluded"),
+          ("clingo_warning_variable_unbounded",          "variableUnbounded"),
+          ("clingo_warning_global_variable",             "globalVariable"),
+          ("clingo_warning_other",                       "other")
+        ]
+      } },
+    -- Callback typedef. Lean type is auto-derived from the C
+    -- function-pointer signature: `Warning → String → IO Unit` (the
+    -- trailing void* is the user-data slot, dropped from the Lean
+    -- view).
+    { cName := "clingo_logger_t", lean := "Logger",
+      mapping := .callback }
   ]
   functions := #[
     -- The constructor: `bool clingo_signature_create(name, arity, positive, *out)`.
@@ -74,6 +98,17 @@ def clingoSignatureBindings : Bindings := {
     -- Opaque-receiving function: `clingo_control_interrupt` takes a
     -- `Control` and returns nothing. Exercises `lean_get_external_data`
     -- on the parameter side.
-    { cName := "clingo_control_interrupt", lean := "interrupt", inIO := true }
+    { cName := "clingo_control_interrupt", lean := "interrupt", inIO := true },
+    -- Callback exercise: parseTerm takes a string, a Logger callback,
+    -- a message-limit, and writes a parsed Symbol via an out-pointer.
+    -- C signature:
+    --   bool clingo_parse_term(string, logger, logger_data, msg_limit, *out)
+    -- Index 2 (logger_data) is the user-data slot for the preceding
+    -- callback (logger) at index 1; the codegen drops it from Lean
+    -- and emits the trampoline + closure-pointer pair automatically.
+    { cName := "clingo_parse_term"
+      lean  := "parseTerm"
+      style := .outParamBoolStatus 4 "clingo_error_message"
+      callbackUserDataParams := [2] }
   ]
 }

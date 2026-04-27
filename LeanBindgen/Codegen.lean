@@ -296,11 +296,11 @@ partial def resolveType
     | some r => .ok r
     | none   => .error s!"unmapped C type: {ty.spec}"
 
-/-! ## Header lookups + struct field resolution
+/-! ## Header lookups + per-mapping resolution
 
 These live above the Lean module emitter because the type emitter for
-struct mappings needs to resolve each field's Lean type from the
-parsed header. -/
+struct/callback mappings needs to resolve types from the parsed
+header. -/
 
 private def lookupEnumTag (h : CHeader) (tag : String) : Option (Array (String × Option Int)) :=
   h.decls.findSome? fun
@@ -310,6 +310,12 @@ private def lookupEnumTag (h : CHeader) (tag : String) : Option (Array (String �
 private def lookupStructTag (h : CHeader) (tag : String) : Option (Array CField) :=
   h.decls.findSome? fun
     | .structDef (some t) fields => if t = tag then some fields else none
+    | _ => none
+
+/-- Look up the body type of a typedef. -/
+private def lookupTypedefBody (h : CHeader) (name : String) : Option CType :=
+  h.decls.findSome? fun
+    | .typedef n ty => if n = name then some ty else none
     | _ => none
 
 private def resolveStructFields
@@ -324,6 +330,45 @@ private def resolveStructFields
     let r ← resolveType anno hf.type
     out := out.push (cField, leanField, r)
   return out
+
+/-- Decide which (if any) of the function-pointer's params is the
+"user-data" slot. By convention this is the *last* parameter when it
+is a `void *`. -/
+private def callbackUserDataIndex (params : Array CParam) : Option Nat :=
+  if h : params.size > 0 then
+    match params[params.size - 1].type with
+    | .pointer .void => some (params.size - 1)
+    | _              => none
+  else none
+
+/-- Extract `(retType, params, userDataIdx?)` from a callback typedef. -/
+private def callbackSignature (h : CHeader) (typedefName : String)
+    : Except String (CType × Array CParam × Option Nat) := do
+  let some body := lookupTypedefBody h typedefName
+    | .error s!"callback typedef `{typedefName}` not found in header"
+  let .pointer (.function ret params _variadic) := body
+    | .error s!"callback typedef `{typedefName}` is not a function-pointer"
+  return (ret, params, callbackUserDataIndex params)
+
+/-- Derive the Lean arrow type for a callback typedef. The trailing
+`void *` (if any) is treated as the user-data slot and dropped. The
+result type is wrapped in `IO` because we always invoke callbacks via
+`lean_apply_*` with an IO world. -/
+private def deriveCallbackLeanType
+    (h : CHeader) (anno : Std.HashMap String TypeAnno) (typedefName : String)
+    : Except String String := do
+  let (ret, params, userDataIdx?) ← callbackSignature h typedefName
+  let visibleParams : List CParam := match userDataIdx? with
+    | some i => params.toList.zipIdx.filterMap fun (p, j) => if j = i then none else some p
+    | none   => params.toList
+  let mut leanParts : Array String := #[]
+  for p in visibleParams do
+    let r ← resolveType anno p.type
+    leanParts := leanParts.push r.leanType
+  let retRes ← resolveType anno ret
+  let arrow := " → ".intercalate
+    (leanParts.toList ++ [s!"IO {retRes.leanType}"])
+  return arrow
 
 /-! ## Lean module emitter -/
 
@@ -344,34 +389,45 @@ private def buildFunctionSignature
     : Except String (String × Array ResolvedType × ResolvedType × Bool) := do
   let .function _name retCty params _variadic := decl
     | .error s!"function annotation `{fa.cName}` does not match a function decl"
-  -- Resolve parameter types.
-  let mut paramRes : Array (Bool × ResolvedType) := #[]   -- borrow flag × resolved
+  -- Resolve parameter types. User-data slots paired with callback
+  -- params get a placeholder (they're never visible to Lean and the
+  -- shim emitter fills them in via the callback param's marshalling).
+  let mut paramRes : Array (Bool × ResolvedType) := #[]
   for h : i in [:params.size] do
     let p := params[i]
-    let r ← resolveType anno p.type
+    let r ←
+      if fa.callbackUserDataParams.contains i then
+        pure (default : ResolvedType)
+      else
+        resolveType anno p.type
     let borrow := fa.borrowedParams.contains i
     paramRes := paramRes.push (borrow, r)
   let retRes ← resolveType anno retCty
   -- Apply the function-style transformation.
+  -- Filter out user-data slots from the Lean signature; they're
+  -- entirely synthesised from the preceding callback param.
+  let visibleByIdx := paramRes.toList.zipIdx.filter
+    (fun (_, i) => !fa.callbackUserDataParams.contains i)
   match fa.style with
   | .direct =>
     let leanType :=
-      let parts := paramRes.toList.map (fun (b, r) => renderParamType r b)
+      let parts := visibleByIdx.map (fun ((b, r), _) => renderParamType r b)
       let parts := parts ++ [if fa.inIO then s!"IO {retRes.leanType}" else retRes.leanType]
       " → ".intercalate parts
     let allRes := paramRes.map Prod.snd
     return (leanType, allRes, retRes, fa.inIO)
   | .outParamBoolStatus outIdx _errMsgFn =>
-    -- Drop the out-parameter from the Lean signature. The pointer
-    -- target type becomes the success value of an Except. The bool
-    -- return is dropped (only used at the C level for status).
+    -- Drop the out-parameter (and any callback user-data slots) from
+    -- the Lean signature. The pointer target type becomes the success
+    -- value of an Except. The bool return is dropped (only used at
+    -- the C level for status).
     if h : outIdx < params.size then
       let outParam := params[outIdx]
       let .pointer pointee := outParam.type
         | .error s!"out-param `{outParam.name.getD "?"}` of `{fa.cName}` is not a pointer"
       let pointeeRes ← resolveType anno pointee
-      let visibleParams := paramRes.toList.zipIdx.filter (fun (_, i) => i ≠ outIdx)
-                                         |>.map (fun (br, _) => br)
+      let visibleParams := visibleByIdx.filter (fun (_, i) => i ≠ outIdx)
+                                       |>.map (fun (br, _) => br)
       let parts := visibleParams.map (fun (b, r) => renderParamType r b)
       let leanRet := s!"IO (Except String {pointeeRes.leanType})"
       let leanType := " → ".intercalate (parts ++ [leanRet])
@@ -414,7 +470,7 @@ private def emitTypeDecl
   | .inductiveEnum em =>
     let ctors := "\n".intercalate
       (em.variants.toList.map (fun (_, leanV) => s!"  | {leanV}"))
-    s!"inductive {ta.lean} where\n{ctors}\n  deriving Repr, Inhabited"
+    s!"inductive {ta.lean} where\n{ctors}\n  deriving Repr, Inhabited, BEq"
   | .structRecord sm =>
     let fields := "\n".intercalate
       (sm.fields.toList.map (fun (_, leanF) =>
@@ -445,9 +501,9 @@ def emitLeanModule (b : Bindings) (h : CHeader) : Except String String := do
     "\n".intercalate (b.leanImports.toList.map (s!"import {·}"))
   let nsOpen :=
     s!"\nnamespace {b.leanModule}\n"
-  -- Type defs. For struct mappings we need each field's resolved
-  -- Lean type to render the structure; build a per-field type map
-  -- here so emitTypeDecl can look it up.
+  -- Type defs. For struct/callback mappings we need extra info
+  -- threaded into emitTypeDecl: per-field types for structs, the
+  -- derived Lean arrow type for callbacks.
   let mut typeBlocks : Array String := #[]
   for ta in b.types do
     match ta.mapping with
@@ -456,6 +512,10 @@ def emitLeanModule (b : Bindings) (h : CHeader) : Except String String := do
       let mut m : Std.HashMap String String := {}
       for (_, leanF, r) in fields do
         m := m.insert leanF r.leanType
+      typeBlocks := typeBlocks.push (emitTypeDecl ta m)
+    | .callback =>
+      let arrow ← deriveCallbackLeanType h typeAnnoMap ta.cName
+      let m : Std.HashMap String String := ({} : Std.HashMap _ _).insert "__callback__" arrow
       typeBlocks := typeBlocks.push (emitTypeDecl ta m)
     | _ => typeBlocks := typeBlocks.push (emitTypeDecl ta)
   let typeBlock := "\n\n".intercalate typeBlocks.toList
@@ -798,6 +858,78 @@ private def emitStructHelpers
     s!"  return v;\n}"
   return toLeanFn ++ "\n\n" ++ toCFn
 
+/-- C expression that boxes a C value of the given resolved type into
+a `lean_object*`. Used by trampolines that hand C-side values back to
+a Lean closure. -/
+private def marshalCToLean (r : ResolvedType) (cVar : String) : String :=
+  match r.returnMarshal with
+  | .leanString          => s!"lean_mk_string({cVar} == NULL ? \"\" : {cVar})"
+  | .enumHelper fn       => s!"lean_box({fn}({cVar}))"
+  | .externalAlloc getter => s!"lean_alloc_external({getter}(), (void *)({cVar}))"
+  | .toLeanStruct fn     => s!"{fn}({cVar})"
+  | .passthrough =>
+    match r.ctorScalar with
+    | "uint8"   => s!"lean_box((uint8_t)({cVar}))"
+    | "uint16"  => s!"lean_box((uint16_t)({cVar}))"
+    | "uint32"  => s!"lean_box_uint32({cVar})"
+    | "uint64"  => s!"lean_box_uint64({cVar})"
+    | "usize"   => s!"lean_box_usize({cVar})"
+    | "float"   => s!"lean_box_float({cVar})"
+    | "float32" => s!"lean_box_float32({cVar})"
+    | _         => s!"lean_box(0) /* unsupported {r.leanType} */"
+
+/-- Emit the trampoline function for a callback typedef. The
+trampoline mirrors the C function-pointer's signature, treats the
+trailing `void *` parameter as a `lean_object *` (the Lean closure),
+marshals each remaining C argument back into a Lean object, then
+invokes the closure via `lean_apply_*` with an IO world token. The
+return value is currently discarded — callbacks must be `IO Unit` for
+this MVP. -/
+private def emitCallbackTrampoline
+    (h : CHeader) (anno : Std.HashMap String TypeAnno) (ta : TypeAnno)
+    : Except String String := do
+  let (ret, params, userDataIdx?) ← callbackSignature h ta.cName
+  let some userDataIdx := userDataIdx?
+    | .error s!"callback `{ta.cName}` has no trailing void* (user-data slot is required)"
+  match ret with
+  | .void => pure ()
+  | _     => .error s!"callback `{ta.cName}` returns non-void; only IO Unit callbacks are currently supported"
+  let trampolineName := callbackTrampolineName ta.cName
+  -- Build C signature.
+  let cSig := params.toList.zipIdx.map fun (p, i) =>
+    let nm := p.name.getD s!"_arg{i}"
+    if i = userDataIdx then s!"void *{nm}"
+    else CType.declarator p.type nm
+  let userDataName := (params[userDataIdx]?.bind (·.name)).getD s!"_arg{userDataIdx}"
+  -- For each non-user-data param, marshal into a Lean object.
+  let mut marshalLines : Array String := #[]
+  let mut leanArgs    : Array String := #[]
+  for h_i : i in [:params.size] do
+    if i = userDataIdx then continue
+    let p := params[i]
+    let nm := p.name.getD s!"_arg{i}"
+    let r ← resolveType anno p.type
+    let leanArgVar := s!"_lean_{i}"
+    marshalLines := marshalLines.push
+      s!"  lean_object* {leanArgVar} = {marshalCToLean r nm};"
+    leanArgs := leanArgs.push leanArgVar
+  let arity := leanArgs.size + 1  -- +1 for the IO world
+  let applyArgs := leanArgs.toList ++ ["lean_io_mk_world()"]
+  let body :=
+    -- The trampoline is *not* `static` so user-supplied test shims
+    -- in other translation units can invoke it directly (useful for
+    -- validating the closure-application path independently of the
+    -- C library that normally invokes it).
+    s!"void {trampolineName}({", ".intercalate cSig}) \{\n" ++
+    s!"  lean_object* closure = (lean_object*){userDataName};\n" ++
+    "\n".intercalate marshalLines.toList ++
+    (if marshalLines.isEmpty then "" else "\n") ++
+    s!"  lean_inc(closure);\n" ++
+    s!"  lean_object* _result = lean_apply_{arity}(closure, {", ".intercalate applyArgs});\n" ++
+    s!"  lean_dec(_result);\n" ++
+    "}"
+  return body
+
 /-- Emit the per-opaque-type external-class boilerplate: a static
 class pointer, a lazy getter, the finalizer wrapper, and the foreach
 no-op. -/
@@ -835,10 +967,11 @@ def emitShim (b : Bindings) (h : CHeader) : Except String String := do
       | .typedef name _   => m.insert name d
       | _ => m) ({} : Std.HashMap _ _)
   -- Per-type setup: enum helpers, opaque-class boilerplate, struct
-  -- to/from converters.
-  let mut enumHelpersArr : Array String := #[]
-  let mut opaqueClassArr : Array String := #[]
+  -- to/from converters, callback trampolines.
+  let mut enumHelpersArr   : Array String := #[]
+  let mut opaqueClassArr   : Array String := #[]
   let mut structHelpersArr : Array String := #[]
+  let mut callbackArr      : Array String := #[]
   for ta in b.types do
     match ta.mapping with
     | .inductiveEnum em =>
@@ -848,6 +981,8 @@ def emitShim (b : Bindings) (h : CHeader) : Except String String := do
     | .structRecord sm =>
       structHelpersArr := structHelpersArr.push
         (← emitStructHelpers h typeAnnoMap ta sm)
+    | .callback =>
+      callbackArr := callbackArr.push (← emitCallbackTrampoline h typeAnnoMap ta)
     | _ => pure ()
   let needsForeach := !opaqueClassArr.isEmpty
   let foreachDef :=
@@ -855,7 +990,7 @@ def emitShim (b : Bindings) (h : CHeader) : Except String String := do
       "static void noop_foreach(void *mod, b_lean_obj_arg fn) { (void)mod; (void)fn; }\n\n"
     else ""
   let helperBlock :=
-    let parts := (enumHelpersArr ++ opaqueClassArr ++ structHelpersArr).toList
+    let parts := (enumHelpersArr ++ opaqueClassArr ++ structHelpersArr ++ callbackArr).toList
     if parts.isEmpty then "" else "\n\n".intercalate parts ++ "\n\n"
   let header :=
     s!"// Auto-generated by lean-bindgen. Do not edit.\n" ++

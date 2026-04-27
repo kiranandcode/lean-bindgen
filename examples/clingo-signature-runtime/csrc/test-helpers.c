@@ -14,6 +14,18 @@ extern lean_external_class *get_control_class(void);
 extern lean_object* location_to_lean(clingo_location_t v);
 extern clingo_location_t lean_to_location(lean_object* obj);
 
+/* Codegen-emitted callback trampoline for the clingo_logger_t typedef. */
+extern void clingo_logger_t_trampoline(clingo_warning_t code, char const *message, void *data);
+
+/* Drive the trampoline directly so a Lean test can verify the
+closure-application path independently of any clingo function that
+might or might not invoke the logger. */
+LEAN_EXPORT lean_obj_res lean_test_invoke_logger(lean_object* cb, lean_object* _io) {
+  (void)_io;
+  clingo_logger_t_trampoline(clingo_warning_runtime_error, "synthetic test message", (void*)cb);
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
 /* Make a Location with predictable values, exercising the
 `location_to_lean` codegen path. */
 LEAN_EXPORT lean_obj_res lean_test_make_location(uint32_t line, uint32_t col) {

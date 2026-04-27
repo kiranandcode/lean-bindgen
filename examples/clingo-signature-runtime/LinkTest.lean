@@ -20,6 +20,9 @@ opaque makeTestLocation (line col : UInt32) : Location
 @[extern "lean_test_location_end_line"]
 opaque locationEndLine (loc : @& Location) : USize
 
+@[extern "lean_test_invoke_logger"]
+opaque invokeLogger (cb : Logger) : IO Unit
+
 /-! End-to-end runtime test: drives the auto-generated bindings against
 real libclingo (5.8.0 from Homebrew). Each assertion exercises a
 different shim path. -/
@@ -97,6 +100,42 @@ def main : IO Unit := do
     | .ok _    => pure ()
     | .error _ => pure ()
   IO.println s!"  ✓ constructed and dropped {n} Controls"
+  -- Callback exercise: parseTerm with a Lean logger closure that
+  -- records every (warning, message) it receives into an IO.Ref.
+  -- We parse a known-good and a known-bad term; the bad one should
+  -- trigger the logger.
+  IO.println "\nlean-bindgen runtime check: callback (Logger)"
+  let log ← IO.mkRef (#[] : Array (Warning × String))
+  let logger : Logger := fun w m => log.modify (·.push (w, m))
+  match (← parseTerm "f(1,2)" logger 20) with
+  | .ok sym  => IO.println s!"  ✓ parseTerm \"f(1,2)\" → Symbol {repr sym} (no warnings expected)"
+  | .error e => IO.eprintln s!"  ✗ parseTerm \"f(1,2)\" failed: {e}"
+  let okWarnings ← log.get
+  if okWarnings.isEmpty then
+    IO.println "  ✓ no warnings logged for valid term"
+  else
+    IO.eprintln s!"  ✗ unexpected warnings: {repr okWarnings}"
+  -- Reset and parse an invalid term.
+  log.set #[]
+  match (← parseTerm "bogus(((" logger 20) with
+  | .ok sym  => IO.eprintln s!"  ✗ expected parseTerm to fail; got Symbol {repr sym}"
+  | .error _ => IO.println "  ✓ parseTerm rejected invalid term"
+  let badWarnings ← log.get
+  IO.println s!"  · logger captured {badWarnings.size} warning(s)"
+  -- Drive the trampoline directly to prove the Lean→C→Lean closure
+  -- path actually invokes our closure (clingo_parse_term doesn't
+  -- happen to call the logger for the cases we tried, so this is the
+  -- explicit proof-of-life).
+  log.set #[]
+  invokeLogger logger
+  let direct ← log.get
+  match direct[0]? with
+  | some (w, m) =>
+    let kindOk := w == Warning.runtimeError
+    if kindOk then IO.println s!"  ✓ trampoline-direct: warning kind = {repr w}"
+    else IO.eprintln s!"  ✗ trampoline-direct: expected runtimeError, got {repr w}"
+    assertEq "trampoline-direct: message"      m "synthetic test message"
+  | none => IO.eprintln "  ✗ trampoline did not invoke closure"
   -- Struct round-trip: build a Location in C, examine its fields in
   -- Lean (which goes via lean_ctor_get/_usize), then read the
   -- end_line back through lean_to_location and the C-side accessor.

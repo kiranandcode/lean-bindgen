@@ -11,7 +11,7 @@ inductive Error where
   | logic
   | badAlloc
   | unknown
-  deriving Repr, Inhabited
+  deriving Repr, Inhabited, BEq
 
 opaque Control : Type
 
@@ -23,6 +23,21 @@ structure Location where
   beginColumn : USize
   endColumn : USize
   deriving Repr, Inhabited
+
+def Symbol := UInt64
+  deriving Repr, Inhabited
+
+inductive Warning where
+  | operationUndefined
+  | runtimeError
+  | atomUndefined
+  | fileIncluded
+  | variableUnbounded
+  | globalVariable
+  | other
+  deriving Repr, Inhabited, BEq
+
+def Logger := Warning → String → IO Unit
 
 @[extern "lean_clingo_signature_create"]
 opaque mk : @& String → UInt32 → Bool → IO (Except String Signature)
@@ -56,5 +71,8 @@ opaque errorString : Error → String
 
 @[extern "lean_clingo_control_interrupt"]
 opaque interrupt : @& Control → IO Unit
+
+@[extern "lean_clingo_parse_term"]
+opaque parseTerm : @& String → @& Logger → UInt32 → IO (Except String Symbol)
 
 end Generated.Signature
