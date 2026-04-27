@@ -567,9 +567,12 @@ private def emitOpaqueClass (ta : TypeAnno) (finalizer : String) : String :=
       if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
       else acc ++ String.singleton c.toLower
     s!"g_{snake}_class"
+  -- Class getter is *not* `static` so hand-written helpers in
+  -- separate translation units (e.g. user-supplied test shims) can
+  -- box raw C pointers as the same Lean opaque type.
   s!"static void {finalizerWrapper}(void *ptr) \{ {finalizer}(({cTypedef} *)ptr); }\n" ++
   s!"static lean_external_class *{classGlobal} = NULL;\n" ++
-  s!"static lean_external_class *{getter}() \{\n" ++
+  s!"lean_external_class *{getter}() \{\n" ++
   s!"  if ({classGlobal} == NULL) \{\n" ++
   s!"    {classGlobal} = lean_register_external_class(&{finalizerWrapper}, &noop_foreach);\n" ++
   s!"  }\n  return {classGlobal};\n}"

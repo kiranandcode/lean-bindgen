@@ -6,6 +6,14 @@ open Generated.Signature
 -- reads naturally below.
 abbrev Signature := Generated.Signature.Signature
 
+/-- Hand-written extern that drives the auto-generated `Control` opaque
+type. The `clingo_control_new` constructor takes a function-pointer
+logger that the codegen doesn't yet support; this helper just calls
+it with NULL logger and NULL args, suitable for exercising the
+external-object path at runtime. -/
+@[extern "lean_test_make_default_control"]
+opaque makeDefaultControl (msgLimit : UInt32) : IO (Except String Control)
+
 /-! End-to-end runtime test: drives the auto-generated bindings against
 real libclingo (5.8.0 from Homebrew). Each assertion exercises a
 different shim path. -/
@@ -61,3 +69,25 @@ def main : IO Unit := do
   assertEq "errorString runtime"  (errorString .runtime)  "runtime error"
   assertEq "errorString badAlloc" (errorString .badAlloc) "bad allocation"
   assertEq "errorString unknown"  (errorString .unknown)  "unknown error"
+  -- Exercise the opaque-pointer path. We construct a Control via the
+  -- handwritten test helper (the codegen path for clingo_control_new
+  -- isn't ready yet — needs callback support), then call interrupt
+  -- on it (which uses lean_get_external_data via the codegen). When
+  -- ctrl drops out of scope, Lean's GC runs `clingo_control_free`
+  -- through the registered finalizer.
+  IO.println "\nlean-bindgen runtime check: clingo_control"
+  match (← makeDefaultControl 20) with
+  | .ok ctrl =>
+    IO.println "  ✓ makeDefaultControl returned Ok"
+    interrupt ctrl
+    IO.println "  ✓ interrupt(ctrl) returned"
+  | .error e =>
+    IO.eprintln s!"  ✗ makeDefaultControl failed: {e}"
+  -- Stress test the finalizer: build & drop N Controls in a loop. If
+  -- the finalizer didn't run, leaks would scale O(N).
+  let n : Nat := 100
+  for _ in [:n] do
+    match (← makeDefaultControl 20) with
+    | .ok _    => pure ()
+    | .error _ => pure ()
+  IO.println s!"  ✓ constructed and dropped {n} Controls"

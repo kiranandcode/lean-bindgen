@@ -28,7 +28,7 @@ static uint8_t error_to_lean(clingo_error_t v) {
 
 static void finalize_control(void *ptr) { clingo_control_free((clingo_control_t *)ptr); }
 static lean_external_class *g_control_class = NULL;
-static lean_external_class *get_control_class() {
+lean_external_class *get_control_class() {
   if (g_control_class == NULL) {
     g_control_class = lean_register_external_class(&finalize_control, &noop_foreach);
   }

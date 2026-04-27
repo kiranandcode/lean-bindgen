@@ -48,6 +48,10 @@ lean_exe «link-test» where
 
 extern_lib «clingo-signature-shim» pkg :=
   buildCBinding pkg "clingo-signature-shim" {
-    shimSources := #["csrc/signature-shim.c"]
+    shimSources := #[
+      "csrc/signature-shim.c",
+      -- Hand-written extras for paths the codegen doesn't yet cover.
+      "csrc/test-helpers.c"
+    ]
     includeDirs := #[clingoIncludeDir]
   }
