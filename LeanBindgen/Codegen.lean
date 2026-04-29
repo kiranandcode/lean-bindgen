@@ -88,6 +88,10 @@ inductive ParamMarshal
   temporary buffer, element-marshals each entry, passes the buffer
   and size to the C call, then `free`s the buffer. -/
   | array (cElemTy : String) (elem : ArrayElemKind)
+  /-- A Lean `ByteArray` passed as a `(uint8_t const *data, size_t len)`
+  pair. The shim extracts the data pointer via `lean_sarray_cptr` and
+  the length via `lean_sarray_size`, passing both to the C call. -/
+  | byteArray
   deriving Inhabited
 
 /-- How a C return value of this resolved type gets transformed in
@@ -307,6 +311,15 @@ private def arrayRT (elemLeanType cElemTy : String) (elemKind : ArrayElemKind) :
     paramMarshal := .array cElemTy elemKind,
     returnMarshal := .array cElemTy elemKind }
 
+/-- Constructor for a Lean `ByteArray` mapping. The shim parameter is
+a boxed `lean_object *`; the C-side value is a `(uint8_t const *, size_t)`
+pair extracted via `lean_sarray_cptr` and `lean_sarray_size`. -/
+private def byteArrayRT : ResolvedType :=
+  { leanType := "ByteArray", shimParam := "b_lean_obj_arg",
+    shimReturn := "lean_obj_res", cLocalType := "uint8_t",
+    isLeanObj := true,
+    paramMarshal := .byteArray }
+
 /-- Constructor for an opaque-pointer mapping. The C-side value is a
 `<typedef> *` wrapped as a Lean external object; the shim extracts via
 `lean_get_external_data` (with a cast) and wraps via
@@ -479,6 +492,13 @@ private def buildHeaderIndex (h : CHeader) : HeaderIndex := Id.run do
 
 private def lookupEnumTag (h : HeaderIndex) (tag : String) : Option (Array (String × Option Int)) :=
   h.enumTagMap[tag]?
+
+/-- Look up a C enum constant by name across all enum definitions.
+Returns the numeric value if found. -/
+private def lookupEnumConstant (h : HeaderIndex) (constName : String) : Option Int :=
+  h.enumTagMap.toList.findSome? fun (_, variants) =>
+    variants.findSome? fun (name, val?) =>
+      if name == constName then val? else none
 
 private def lookupStructTag (h : HeaderIndex) (tag : String) : Option (Array CField) :=
   h.structTagMap[tag]?
@@ -686,12 +706,15 @@ private def buildFunctionSignature
   let .function _name retCty params _variadic := decl
     | .error s!"function annotation `{fa.cName}` does not match a function decl"
   -- Collect hidden-param indices: callback user-data slots + array
-  -- size slots. These are invisible in the Lean signature.
+  -- size slots + byteArray size slots. These are invisible in the Lean signature.
   let arraySizeIndices := fa.arrayPairs.map Prod.snd
-  let hiddenIndices := fa.callbackUserDataParams ++ arraySizeIndices
+  let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
+  let hiddenIndices := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
   -- Resolve parameter types. Hidden params get placeholders. Array
-  -- data-params get resolved as `Array T`.
+  -- data-params get resolved as `Array T`. ByteArray data-params
+  -- get resolved as `ByteArray`.
   let arrayDataIndices := fa.arrayPairs.map Prod.fst
+  let byteArrayDataIndices := fa.byteArrayPairs.map Prod.fst
   let mut paramRes : Array (Bool × ResolvedType) := #[]
   for h : i in [:params.size] do
     let p := params[i]
@@ -707,6 +730,8 @@ private def buildFunctionSignature
         let elemRes ← resolveType anno elemTy
         let elemKind := arrayElemKindOf elemRes
         pure (arrayRT elemRes.leanType elemRes.cLocalType elemKind)
+      else if byteArrayDataIndices.contains i then
+        pure byteArrayRT
       else
         resolveType anno p.type
     let borrow := fa.borrowedParams.contains i
@@ -791,6 +816,8 @@ private def buildFunctionSignature
       let visibleParams := visibleByIdx.filter (fun (_, i) => i ≠ outIdx)
                                        |>.map (fun (br, _) => br)
       let parts := visibleParams.map (fun (b, r) => renderParamType r b)
+      -- If no visible params, add Unit to avoid generating a bare constant.
+      let parts := if parts.isEmpty then ["Unit"] else parts
       let retTy := if fa.inIO then s!"IO {pointeeRes.leanType}" else pointeeRes.leanType
       let leanType := " → ".intercalate (parts ++ [retTy])
       let allRes := paramRes.map Prod.snd
@@ -873,6 +900,8 @@ private def buildFunctionSignature
     let visibleParams := visibleByIdx.filter (fun (_, i) => !outIdxSet.contains i)
                                      |>.map (fun (br, _) => br)
     let parts := visibleParams.map (fun (b, r) => renderParamType r b)
+    -- If no visible params, add Unit to avoid generating a bare constant.
+    let parts := if parts.isEmpty then ["Unit"] else parts
     let retTy := if fa.inIO then s!"IO {prodTy}" else prodTy
     let leanType := " → ".intercalate (parts ++ [retTy])
     let allRes := paramRes.map Prod.snd
@@ -880,6 +909,25 @@ private def buildFunctionSignature
     -- minimally by callers; the real return is the Prod).
     let retRes' := if outRes.size > 0 then outRes[0]! else scalarRT "Unit" "void" 0 ""
     return (leanType, allRes, retRes', fa.inIO)
+  | .byteArrayOutBoolStatus ptrIdx sizeIdx error =>
+    -- Bool return + (uint8_t **, size_t *) out-params → ByteArray.
+    -- Both ptrIdx and sizeIdx are dropped from Lean signature.
+    if h₁ : ptrIdx < params.size then
+      if h₂ : sizeIdx < params.size then
+        let visibleParams := visibleByIdx.filter (fun (_, i) => i ≠ ptrIdx && i ≠ sizeIdx)
+                                         |>.map (fun (br, _) => br)
+        let parts := visibleParams.map (fun (b, r) => renderParamType r b)
+        let errorTy := match error with
+          | .string _        => "String"
+          | .enum _ eLean    => eLean
+          | .tuple _ eLean _ => s!"({eLean} × String)"
+        let leanRet := s!"IO (Except {errorTy} ByteArray)"
+        let leanType := " → ".intercalate (parts ++ [leanRet])
+        let allRes := paramRes.map Prod.snd
+        let baRes := byteArrayRT
+        return (leanType, allRes, baRes, true)
+      else .error s!"`{fa.cName}` sizeIdx {sizeIdx} out of range"
+    else .error s!"`{fa.cName}` ptrIdx {ptrIdx} out of range"
 
 /-- Resolve the C-side extern symbol for a function annotation.
 Default is `lean_<cName>`; the user can override with `externSymbol`. -/
@@ -967,8 +1015,10 @@ private def emitTypeDecl
               s!"(field{i} : {leanTy})"
             some (" ".intercalate fields)
       (v.leanCtor, payloadStr)
+    -- Event callback variants may reference opaque types (e.g. Model,
+    -- Statistics) that lack Repr, so only derive Inhabited.
     let inductiveDecl : Gen.LeanDecl :=
-      .inductive_ ec.eventTypeName ctors #["Repr", "Inhabited"]
+      .inductive_ ec.eventTypeName ctors #["Inhabited"]
     let callbackDef : Gen.LeanDecl :=
       .defAlias ta.lean s!"{ec.eventTypeName} → IO {ec.leanReturnType}"
     #[inductiveDecl, callbackDef]
@@ -1000,6 +1050,21 @@ private def typeDependencies
         let paramRefs := params.toList.filterMap (fun p => extractTypedefRef p.type)
         paramRefs ++ (extractTypedefRef ret).toList
       | _ => []
+    | .taggedUnion tu =>
+      -- Dependencies from shared fields + variant payload (union) fields.
+      let headerFields := lookupStructTag h tu.cStructTag
+      match headerFields with
+      | none => []
+      | some fields =>
+        let sharedRefs := tu.sharedFields.toList.filterMap fun (cField, _) =>
+          match fields.find? (·.name = cField) with
+          | none => none
+          | some hf => extractTypedefRef hf.type
+        let variantRefs := tu.variants.toList.filterMap fun v =>
+          match fields.find? (·.name = v.unionField) with
+          | none => none
+          | some hf => extractTypedefRef hf.type
+        sharedRefs ++ variantRefs
     | .eventCallback ec =>
       -- Collect all Lean type names referenced by the variants and
       -- look them up via the annotation map (reverse: Lean name → C name).
@@ -1242,6 +1307,13 @@ private def renderParamPass (r : ResolvedType) (nm : String)
       let postlude := elemFreeLoop ++ #[s!"  free({nm}_buf);"]
       -- Two C call args: the buffer pointer and the size.
       (prelude, #[s!"{nm}_buf", s!"{nm}_size"], postlude)
+  | .byteArray =>
+      -- ByteArray: extract pointer and size from Lean's compact scalar array.
+      let prelude := #[
+        s!"  uint8_t const *{nm}_ptr = lean_sarray_cptr({nm});",
+        s!"  size_t {nm}_len = lean_sarray_size({nm});"
+      ]
+      (prelude, #[s!"{nm}_ptr", s!"{nm}_len"], #[])
 
 /-- The C expression that turns the C-call result into a Lean object
 (prior to any IO wrapping). For non-IO returns whose Lean type *isn't*
@@ -1313,9 +1385,10 @@ private def directShimBody
   let mut postlude : Array String := #[]
   let mut callArgs : Array String := #[]
   let arraySizeIndices := fa.arrayPairs.map Prod.snd
-  let hiddenIndices := fa.callbackUserDataParams ++ arraySizeIndices
+  let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
+  let hiddenIndices := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
   -- Iterate Lean parameters (which mirror C parameters EXCEPT for
-  -- those listed in `callbackUserDataParams` / array-size slots —
+  -- those listed in `callbackUserDataParams` / array-size / byteArray-size slots —
   -- those are filled in automatically).
   for h : i in [:resolved.size] do
     if hiddenIndices.contains i then continue
@@ -1380,10 +1453,11 @@ private def emitShimFunction
   let externSym := externSymbolOf fa
   match fa.style with
   | .direct =>
-    -- Drop hidden params (callback user-data + array size) from the
+    -- Drop hidden params (callback user-data + array size + byteArray size) from the
     -- shim signature.
     let arraySizeIndices := fa.arrayPairs.map Prod.snd
-    let hiddenDirect := fa.callbackUserDataParams ++ arraySizeIndices
+    let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
+    let hiddenDirect := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
     let visiblePairs := allRes.zipIdx.filter (fun (_, i) => !hiddenDirect.contains i)
     let plist := visiblePairs.map (fun (r, i) =>
       let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
@@ -1411,7 +1485,8 @@ private def emitShimFunction
       -- Build visible params: drop the out-param, callback user-data
       -- slots, and array-size slots.
       let arraySizeIndices := fa.arrayPairs.map Prod.snd
-      let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices
+      let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
+      let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
       let visible := allRes.zipIdx.filter (fun (_, i) =>
         i ≠ outIdx && !hiddenOut.contains i)
       let plist := visible.map (fun (r, i) =>
@@ -1496,7 +1571,8 @@ private def emitShimFunction
   | .boolStatus error =>
     -- All params are visible in the shim; bool return → Except Unit.
     let arraySizeIndices := fa.arrayPairs.map Prod.snd
-    let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices
+    let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
+    let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
     let visible := allRes.zipIdx.filter (fun (_, i) => !hiddenOut.contains i)
     let plist := visible.map (fun (r, i) =>
       let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
@@ -1547,7 +1623,8 @@ private def emitShimFunction
         | .error "out-param is not a pointer (shim)"
       let pointeeRes ← resolveType anno pointee
       let arraySizeIndices := fa.arrayPairs.map Prod.snd
-      let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices
+      let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
+      let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
       let visible := allRes.zipIdx.filter (fun (_, i) =>
         i ≠ outIdx && !hiddenOut.contains i)
       let plist := visible.map (fun (r, i) =>
@@ -1621,12 +1698,15 @@ private def emitShimFunction
         | .error "out-param is not a pointer (shim)"
       let pointeeRes ← resolveType anno pointee
       let arraySizeIndices := fa.arrayPairs.map Prod.snd
-      let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices
+      let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
+      let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
       let visible := allRes.zipIdx.filter (fun (_, i) =>
         i ≠ outIdx && !hiddenOut.contains i)
       let plist := visible.map (fun (r, i) =>
         let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
         s!"{r.shimParam} {nm}")
+      -- If no visible params, add a dummy Unit parameter to match the Lean signature.
+      let plist := if plist.isEmpty then #["lean_obj_arg _unit"] else plist
       let mut prelude  : Array String := #[]
       let mut callArgs : Array String := #[]
       for h : i in [:allRes.size] do
@@ -1863,12 +1943,15 @@ private def emitShimFunction
     -- for each, call the C function, build right-nested Prod.mk ctors.
     let outIdxSet := outParamIndices.toList
     let arraySizeIndices := fa.arrayPairs.map Prod.snd
-    let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices
+    let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
+    let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
     let visible := allRes.zipIdx.filter (fun (_, i) =>
       !outIdxSet.contains i && !hiddenOut.contains i)
     let plist := visible.map (fun (r, i) =>
       let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
       s!"{r.shimParam} {nm}")
+    -- If no visible params, add a dummy Unit parameter to match the Lean signature.
+    let plist := if plist.isEmpty then #["lean_obj_arg _unit"] else plist
     -- Resolve each out-param's pointee type.
     let mut outInfos : Array (String × ResolvedType) := #[]
     for idx in outParamIndices do
@@ -1951,6 +2034,72 @@ private def emitShimFunction
            s!"  {fa.cName}({", ".intercalate callArgs.toList});\n" ++
            "\n".intercalate prodLines.toList ++ "\n" ++
            retStmt ++ "\n}")
+  | .byteArrayOutBoolStatus ptrIdx sizeIdx error =>
+    -- Bool return + (uint8_t **, size_t *) out-params → ByteArray.
+    if h₁ : ptrIdx < params.size then
+      if h₂ : sizeIdx < params.size then
+        let ptrName := (params[ptrIdx].name).getD s!"arg{ptrIdx}"
+        let sizeName := (params[sizeIdx].name).getD s!"arg{sizeIdx}"
+        let arraySizeIndices := fa.arrayPairs.map Prod.snd
+        let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
+        let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
+        let visible := allRes.zipIdx.filter (fun (_, i) =>
+          i ≠ ptrIdx && i ≠ sizeIdx && !hiddenOut.contains i)
+        let plist := visible.map (fun (r, i) =>
+          let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
+          s!"{r.shimParam} {nm}")
+        let mut prelude  : Array String := #[]
+        let mut postlude : Array String := #[]
+        let mut callArgs : Array String := #[]
+        for h : i in [:allRes.size] do
+          let r := allRes[i]
+          let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
+          if i = ptrIdx then
+            callArgs := callArgs.push s!"&{ptrName}"
+          else if i = sizeIdx then
+            callArgs := callArgs.push s!"&{sizeName}"
+          else if hiddenOut.contains i then
+            continue
+          else
+            let (pre, exprs, post) := renderParamPass r nm
+            prelude  := prelude ++ pre
+            postlude := postlude ++ post
+            if !fa.retainedParams.contains i then
+              match r.freeHelperFn with
+              | some freeFn =>
+                match r.paramMarshal with
+                | .fromLeanStruct _ _ _ =>
+                  postlude := postlude ++ #[s!"  {freeFn}(&{nm}_c);"]
+                | _ => pure ()
+              | none => pure ()
+            callArgs := callArgs ++ exprs
+        let preludeStr  := "\n".intercalate prelude.toList
+        let postludeStr := "\n".intercalate postlude.toList
+        let postBlock :=
+          if postludeStr = "" then "" else postludeStr ++ "\n      "
+        let okBlock :=
+          s!"\{\n      {postBlock}lean_object* ba = lean_alloc_sarray(1, {sizeName}, {sizeName});\n" ++
+          s!"      memcpy(lean_sarray_cptr(ba), {ptrName}, {sizeName});\n" ++
+          s!"      free({ptrName});\n" ++
+          s!"      lean_object* ok = lean_alloc_ctor(1, 1, 0);\n" ++
+          s!"      lean_ctor_set(ok, 0, ba);\n" ++
+          s!"      return lean_io_result_mk_ok(ok);\n    }"
+        let errBlock := match error with
+          | .string errMsgFn =>
+            s!"\{\n      {postBlock}char const *msg = {errMsgFn}();\n      if (msg == NULL) msg = \"\";\n      lean_object* err = lean_alloc_ctor(0, 1, 0);\n      lean_ctor_set(err, 0, lean_mk_string(msg));\n      return lean_io_result_mk_ok(err);\n    }"
+          | .enum codeFn eLean =>
+            let (_, toLeanFn) := enumHelpers eLean
+            s!"\{\n      {postBlock}lean_object* code = lean_box({toLeanFn}({codeFn}()));\n      lean_object* err = lean_alloc_ctor(0, 1, 0);\n      lean_ctor_set(err, 0, code);\n      return lean_io_result_mk_ok(err);\n    }"
+          | .tuple codeFn eLean msgFn =>
+            let (_, toLeanFn) := enumHelpers eLean
+            s!"\{\n      {postBlock}lean_object* code = lean_box({toLeanFn}({codeFn}()));\n      char const *msg = {msgFn}();\n      if (msg == NULL) msg = \"\";\n      lean_object* pair = lean_alloc_ctor(0, 2, 0);\n      lean_ctor_set(pair, 0, code);\n      lean_ctor_set(pair, 1, lean_mk_string(msg));\n      lean_object* err = lean_alloc_ctor(0, 1, 0);\n      lean_ctor_set(err, 0, pair);\n      return lean_io_result_mk_ok(err);\n    }"
+        return .raw (s!"LEAN_EXPORT lean_obj_res {externSym}({", ".intercalate plist.toList}) \{\n" ++
+               s!"  uint8_t *{ptrName} = NULL;\n" ++
+               s!"  size_t {sizeName} = 0;\n" ++
+               (if preludeStr = "" then "" else preludeStr ++ "\n") ++
+               s!"  if ({fa.cName}({", ".intercalate callArgs.toList})) " ++ okBlock ++ " else " ++ errBlock ++ "\n}")
+      else .error s!"`{fa.cName}` sizeIdx out of range"
+    else .error s!"`{fa.cName}` ptrIdx out of range"
 
 /-- Emit the pair of static helper functions converting between a
 Lean inductive-encoded enum and the underlying C int. -/
@@ -2364,6 +2513,7 @@ private def marshalLeanToC (r : ResolvedType) (leanVar : String) : String :=
   | .fromLeanStruct fn _ _ => s!"{fn}({leanVar})"
   | .externalData cTy => s!"({cTy})lean_get_external_data({leanVar})"
   | .array _ _        => s!"/* array Lean→C: handled inline */ NULL"
+  | .byteArray        => s!"/* byteArray Lean→C: handled inline */ NULL"
   | .callback _       => s!"/* nested callback: handled inline */ NULL"
 
 /-- Emit the forward trampoline function for a callback typedef (C→Lean).
@@ -2860,8 +3010,14 @@ private def emitEventCallbackTrampoline
       for i in List.range count do
         caseLines := caseLines.push s!"      lean_ctor_set(eventObj, {i}, _ev{i});"
     let caseBody := "\n".intercalate caseLines.toList
+    -- Use numeric value if we can resolve it from the header; otherwise
+    -- fall back to the symbolic constant (works when compiling against
+    -- the same header the annotation was written for).
+    let caseLabel := match lookupEnumConstant h v.cEnumValue with
+      | some n => s!"{n}"
+      | none   => v.cEnumValue
     switchCases := switchCases.push
-      (s!"    case {v.cEnumValue}: \{\n{caseBody}\n      break;\n    }")
+      (s!"    case {caseLabel}: \{\n{caseBody}\n      break;\n    }")
   let switchBody := "\n".intercalate switchCases.toList
   -- Build the return handling (reads out-params from the Lean closure result).
   let mut outParamWrites : Array String := #[]
@@ -2888,7 +3044,12 @@ private def emitEventCallbackTrampoline
     s!"  lean_object *closure = (lean_object *){userData};\n" ++
     s!"  lean_object *eventObj;\n" ++
     s!"  switch ({discrimName}) \{\n" ++ switchBody ++ "\n" ++
-    s!"    default: eventObj = lean_box(0); break;\n" ++
+    -- For unknown event types (e.g. clingo 5.8 unsat events), skip the
+    -- callback entirely: set out-params to defaults and return success.
+    s!"    default:\n" ++
+    (outParamNames.toList.map (s!"      *{·} = 1;") |> "\n".intercalate) ++
+    (if outParamNames.isEmpty then "" else "\n") ++
+    s!"      return {ec.successReturnValue};\n" ++
     s!"  }\n" ++
     s!"  lean_inc(closure);\n" ++
     s!"  lean_object *_result = lean_apply_2(closure, eventObj, lean_io_mk_world());\n" ++
@@ -2978,7 +3139,9 @@ def emitShim (b : Bindings) (hdr : CHeader) : Except String String := do
   let hasTaggedUnion := b.types.any (fun ta => match ta.mapping with | .taggedUnion _ => true | _ => false)
   let hasStructOrTU := b.types.any (fun ta => match ta.mapping with
     | .structRecord _ | .taggedUnion _ => true | _ => false)
-  let needsStdlib := hasStructOrTU || hasNestedCallbacks
+  let hasByteArrayOut := b.functions.any (fun fa => match fa.style with
+    | .byteArrayOutBoolStatus _ _ _ => true | _ => false)
+  let needsStdlib := hasStructOrTU || hasNestedCallbacks || hasByteArrayOut
   -- Assemble the CShimFile in order.
   let mut file : Gen.CShimFile := #[]
   file := file.push (.comment "Auto-generated by lean-bindgen. Do not edit.")
@@ -2986,7 +3149,7 @@ def emitShim (b : Bindings) (hdr : CHeader) : Except String String := do
   if !opaqueHelpers.isEmpty || hasNestedCallbacks then
     file := file.push (.include "pthread.h")
   if needsStdlib then file := file.push (.include "stdlib.h")
-  if hasTaggedUnion || hasStructOrTU then file := file.push (.include "string.h")
+  if hasTaggedUnion || hasStructOrTU || hasByteArrayOut then file := file.push (.include "string.h")
   file := file.push (.include (b.headerPath.splitOn "/" |>.getLast!) false)
   if needsForeach then
     file := file.push (.raw "static void noop_foreach(void *mod, b_lean_obj_arg fn) { (void)mod; (void)fn; }")

@@ -347,6 +347,11 @@ inductive FunctionStyle
   `(T₁ × T₂ × ... × Tₙ)`. All out-param indices are dropped from the
   visible Lean signature. -/
   | multiOutParam (outParamIndices : Array Nat)
+  /-- C function returns `bool`, true=success. Two out-params at
+  `ptrIdx` (`uint8_t **`) and `sizeIdx` (`size_t *`) form a byte-buffer
+  result. On success, the shim builds a `ByteArray` via `lean_alloc_sarray`.
+  The Lean return type is `IO (Except <ErrorTy> ByteArray)`. -/
+  | byteArrayOutBoolStatus (ptrIdx : Nat) (sizeIdx : Nat) (error : ErrorReturn)
   deriving Inhabited
 
 structure FunctionAnno where
@@ -381,6 +386,12 @@ structure FunctionAnno where
   and replaced by a single `Array` argument at the data-pointer's
   position. -/
   arrayPairs : List (Nat × Nat) := []
+  /-- Pairs `(dataParamIdx, sizeParamIdx)` identifying C parameter
+  pairs of the form `(uint8_t const *data, size_t len)` that should
+  be presented as a single `ByteArray` on the Lean side. Like
+  `arrayPairs` but uses `lean_sarray_*` (compact scalar array) instead
+  of `lean_array_*` (boxed element array). -/
+  byteArrayPairs : List (Nat × Nat) := []
   /-- 0-based indices of parameters whose data is retained by the C
   function beyond the call. For these parameters, the shim deep-copies
   (malloc) nested struct payloads but does NOT free them in the postlude

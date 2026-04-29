@@ -1,1 +1,2 @@
 import Examples.ClingoSignature
+import Examples.ZlibBindings

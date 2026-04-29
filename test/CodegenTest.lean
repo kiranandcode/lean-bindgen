@@ -3,6 +3,8 @@ import LeanBindgen.C.Parser
 import LeanBindgen.Codegen
 import Examples.ClingoSignature
 import Examples.ClingoFull
+import Examples.CleangoProject
+import Examples.ZlibBindings
 
 open LeanBindgen LeanBindgen.C LeanBindgen.Codegen
 
@@ -110,6 +112,8 @@ private def mixedScalarBindings : Bindings := {
       } }
   ]
 }
+
+set_option maxRecDepth 1024
 
 def main : IO Unit := do
   let path := clingoSignatureBindings.headerPath
@@ -359,3 +363,111 @@ def main : IO Unit := do
     IO.println "✓ all full cleango pattern checks passed"
   else
     IO.eprintln "✗ some full cleango pattern checks failed"
+  -- === Cleango project generation ===
+  IO.println "\n=== Cleango project generation ==="
+  let cgLean ← IO.ofExcept (emitLeanModule cleangoBindings fullHeader)
+  let cgShim ← IO.ofExcept (emitShim cleangoBindings fullHeader)
+  IO.println s!"  generated Lean: {cgLean.length} bytes"
+  IO.println s!"  generated C shim: {cgShim.length} bytes"
+  let cgLeanDir : System.FilePath := "examples/cleango/Clingo/Generated"
+  let cgCsrcDir : System.FilePath := "examples/cleango/csrc"
+  IO.FS.createDirAll cgLeanDir
+  IO.FS.createDirAll cgCsrcDir
+  let cgLeanFile := cgLeanDir / "ClingoBindings.lean"
+  let cgShimFile := cgCsrcDir / "clingo-bindings-shim.c"
+  IO.FS.writeFile cgLeanFile cgLean
+  IO.FS.writeFile cgShimFile cgShim
+  IO.println s!"  wrote {cgLeanFile}"
+  IO.println s!"  wrote {cgShimFile}"
+  let cgOut ← IO.Process.output {
+    cmd := "cc"
+    args := #["-fsyntax-only", "-I", leanIncPath,
+              "-I", refIncPath,
+              cgShimFile.toString]
+  }
+  if cgOut.exitCode = 0 then
+    IO.println "✓ cleango shim compiles against reference clingo.h"
+  else
+    IO.eprintln s!"✗ cleango shim compile failed (exit {cgOut.exitCode}):"
+    IO.eprintln cgOut.stderr
+  -- === Zlib ByteArray codegen test ===
+  IO.println "\n=== Zlib ByteArray codegen test ==="
+  let zlibPath := zlibBindings.headerPath
+  let zlibSrc ← IO.FS.readFile zlibPath
+  let zlibToks ← IO.ofExcept (tokenize zlibSrc)
+  let zlibHeader ← IO.ofExcept (parseHeader zlibToks)
+  IO.println s!"  parsed {zlibHeader.decls.size} decls from zlib wrapper header"
+  let zlibLean ← IO.ofExcept (emitLeanModule zlibBindings zlibHeader)
+  let zlibShim ← IO.ofExcept (emitShim zlibBindings zlibHeader)
+  IO.println s!"  generated Lean: {zlibLean.length} bytes"
+  IO.println s!"  generated C shim: {zlibShim.length} bytes"
+  -- Write artifacts to zlib-runtime sub-package.
+  let zlibRuntimeRoot : System.FilePath := "examples/zlib-runtime"
+  let zlibLeanDir := zlibRuntimeRoot / "Generated"
+  let zlibCsrcDir := zlibRuntimeRoot / "csrc"
+  IO.FS.createDirAll zlibLeanDir
+  IO.FS.createDirAll zlibCsrcDir
+  let zlibLeanFile := zlibLeanDir / "Zlib.lean"
+  let zlibShimFile := zlibCsrcDir / "zlib-shim.c"
+  IO.FS.writeFile zlibLeanFile zlibLean
+  IO.FS.writeFile zlibShimFile zlibShim
+  IO.println s!"  wrote {zlibLeanFile}"
+  IO.println s!"  wrote {zlibShimFile}"
+  -- Compile the shim with cc -fsyntax-only.
+  let zlibOut ← IO.Process.output {
+    cmd := "cc"
+    args := #["-fsyntax-only", "-I", leanIncPath,
+              "-I", "examples/zlib",
+              zlibShimFile.toString]
+  }
+  if zlibOut.exitCode = 0 then
+    IO.println "  ✓ zlib shim compiles (cc -fsyntax-only)"
+  else
+    IO.eprintln s!"  ✗ zlib shim compile failed (exit {zlibOut.exitCode}):"
+    IO.eprintln zlibOut.stderr
+  -- Pattern checks for ByteArray-specific codegen.
+  let mut zlibOk := true
+  let zlibChecks := #[
+    -- ByteArray input: lean_sarray_cptr for data extraction
+    ("lean_sarray_cptr", "ByteArray input: lean_sarray_cptr present"),
+    -- ByteArray input: lean_sarray_size for length extraction
+    ("lean_sarray_size", "ByteArray input: lean_sarray_size present"),
+    -- ByteArray output: lean_alloc_sarray for result construction
+    ("lean_alloc_sarray(1,", "ByteArray output: lean_alloc_sarray present"),
+    -- ByteArray output: memcpy to fill the sarray
+    ("memcpy(lean_sarray_cptr(", "ByteArray output: memcpy into sarray present"),
+    -- Except.ok ctor for success path
+    ("lean_alloc_ctor(1, 1, 0)", "Except.ok ctor in success path"),
+    -- Error path: zlib_last_error call
+    ("zlib_last_error()", "error path calls zlib_last_error"),
+    -- stdlib.h included (for free)
+    ("#include <stdlib.h>", "stdlib.h included"),
+    -- string.h included (for memcpy)
+    ("#include <string.h>", "string.h included"),
+    -- Opaque types: DeflateState and InflateState
+    ("get_deflate_state_class", "DeflateState opaque class getter"),
+    ("get_inflate_state_class", "InflateState opaque class getter")
+  ]
+  for (pattern, desc) in zlibChecks do
+    if (zlibShim.splitOn pattern).length > 1 then
+      IO.println s!"  ✓ {desc}"
+    else
+      IO.eprintln s!"  ✗ {desc} — pattern not found: {pattern}"
+      zlibOk := false
+  -- Also check the Lean module has ByteArray in signatures.
+  let leanChecks := #[
+    ("ByteArray", "Lean module mentions ByteArray"),
+    ("Except String ByteArray", "Lean return type: Except String ByteArray"),
+    ("opaque DeflateState", "opaque DeflateState declared"),
+    ("opaque InflateState", "opaque InflateState declared")
+  ]
+  for (pattern, desc) in leanChecks do
+    if (zlibLean.splitOn pattern).length > 1 then
+      IO.println s!"  ✓ {desc}"
+    else
+      IO.eprintln s!"  ✗ {desc} — pattern not found: {pattern}"
+      zlibOk := false
+  if zlibOk then
+    IO.println "✓ all zlib ByteArray codegen checks passed"
+  else
+    IO.eprintln "✗ some zlib ByteArray codegen checks failed"
