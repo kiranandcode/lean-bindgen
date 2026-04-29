@@ -100,6 +100,28 @@ LEAN_EXPORT lean_obj_res lean_clingo_signature_create(
 That's the boring half of binding work that the user no longer
 writes by hand.
 
+## Safety
+
+The generated shim applies several safety measures by default:
+
+- **Thread-safe class registration** — opaque-type external classes
+  and callback wrapper classes are initialised via `pthread_once`,
+  eliminating the TOCTOU race on concurrent first use.
+- **Malloc overflow guards** — every `malloc(sizeof(T) * n)` site is
+  preceded by a `SIZE_MAX / sizeof(T)` check that panics on overflow.
+- **String field ownership** — struct `toC` helpers use `strdup()` for
+  string fields (not a borrowed `lean_string_cstr` pointer), and the
+  matching `free_<type>` helpers release them.
+- **Ctor limit validation** — codegen errors out if a struct or tagged
+  union exceeds `lean_alloc_ctor` limits (tag > 243, num_objs >= 256,
+  scalar_sz >= 1024).
+- **Callback arity check** — codegen errors if a callback typedef has
+  more than 16 parameters (the `lean_apply_N` ceiling).
+- **Unsupported-pattern panics** — array returns, array out-params,
+  and array-in-callback patterns that aren't yet implemented call
+  `lean_internal_panic` with a descriptive message instead of silently
+  returning `lean_box(0)`.
+
 ## Coverage
 
 Eight `TypeMapping` kinds and eight `FunctionStyle` kinds, plus
@@ -118,7 +140,7 @@ per-function `borrowedParams` / `callbackUserDataParams` /
 | `callback` | `def Foo := T1 → T2 → IO R` + trampoline that marshals C args → Lean closure invocation via `lean_apply_*` (supports nested callbacks, non-void returns, reverse trampolines) |
 | `taggedUnion` | Lean `inductive` from C struct + tag enum + union; per-variant C ↔ Lean switch dispatch, deep free helpers |
 | `bitfieldStruct` | Lean `structure` of `Bool` fields + bitwise pack/unpack helpers |
-| `eventCallback` | Lean `inductive` for event variants + callback `def` alias + trampoline with switch dispatch on event discriminant (supports opaque ptrs, deref-mapped structs, ptr arrays) |
+| `eventCallback` | Lean `inductive` for event variants + callback `def` alias + trampoline with switch dispatch on event discriminant (supports opaque ptrs, deref-mapped structs, ptr arrays, configurable `successReturnValue` and `outParamTypes`) |
 
 ### Function styles
 
@@ -130,7 +152,7 @@ per-function `borrowedParams` / `callbackUserDataParams` /
 | `optionOutParam` | `IO (Option T)` | `bool fn(..., T *out)` → `some`/`none` |
 | `voidOutParam` | `IO T` or `T` | `void fn(..., T *out)` → unwrap |
 | `optionOutArray` | `IO (Option (Array T))` | `bool fn(..., T const **out, size_t *n)` |
-| `callerAllocates` | `IO (Except E (Array T))` or `String` | Two-step: query size, alloc, fill |
+| `callerAllocates` | `IO (Except E (Array T))` or `String` | Two-step: query size, alloc, fill. Supports `nullTerminated` flag and `resultKind` override. |
 | `multiOutParam` | `IO (T₁ × T₂ × T₃)` or pure | `void fn(T₁ *a, T₂ *b, T₃ *c)` → right-nested Prod |
 
 ### Error return types
@@ -181,7 +203,7 @@ lean-bindgen/
 ├── LeanBindgen/
 │   ├── Lake.lean                        reusable extern_lib helper
 │   ├── Annotation.lean                  Bindings / TypeAnno / FunctionAnno
-│   ├── Codegen.lean                     the emitter (~2800 lines)
+│   ├── Codegen.lean                     the emitter (~3000 lines)
 │   └── C/
 │       ├── Ast.lean                     flat semantic AST
 │       ├── Pretty.lean                  AST → C source (K&R declarators)
@@ -344,7 +366,7 @@ self-contained stanza you can paste directly into your own
 | Parser | working; 8/8 tests; clears full clingo.h (414 decls) |
 | Pretty-printer | working; 12/12 tests |
 | Codegen — Lean | working; 8 type mappings, 8 function styles |
-| Codegen — shim | same; passes `cc -fsyntax-only` against system clingo.h |
+| Codegen — shim | same; thread-safe init, overflow guards, strdup strings; passes `cc -fsyntax-only` |
 | Full clingo coverage | 167 types, 66 functions; ~170 KB shim compiles clean |
 | Structural verification | 134/134 matched pairs equivalent to hand-written cleango |
 | Runtime validation | 32/32 assertions against libclingo 5.8.0 |

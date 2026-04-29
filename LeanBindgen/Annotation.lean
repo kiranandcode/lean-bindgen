@@ -235,6 +235,10 @@ structure EventCallbackMapping where
   leanReturnType : String
   /-- Per-variant descriptions. -/
   variants : Array EventVariant
+  /-- The C expression to return on success (default `"1"`). -/
+  successReturnValue : String := "1"
+  /-- C type for each out-param, for correct unboxing (default all `"bool"`). -/
+  outParamTypes : Array String := #[]
   deriving Inhabited
 
 /-- How a C type is presented in Lean. -/
@@ -337,6 +341,7 @@ inductive FunctionStyle
   of the buffer pointer and size parameters in the main function;
   all other parameters are "shared" (passed to both calls). -/
   | callerAllocates (sizeFn : String) (bufIdx : Nat) (sizeIdx : Nat) (error : ErrorReturn)
+      (nullTerminated : Bool := true) (resultKind : Option String := none)
   /-- Void-return function where multiple params are out-pointers. The
   Lean return type is a right-nested `Prod` of the pointee types:
   `(T₁ × T₂ × ... × Tₙ)`. All out-param indices are dropped from the

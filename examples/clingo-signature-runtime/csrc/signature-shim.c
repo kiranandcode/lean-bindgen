@@ -2,7 +2,11 @@
 
 #include "lean/lean.h"
 
+#include <pthread.h>
+
 #include <stdlib.h>
+
+#include <string.h>
 
 #include "clingo.h"
 
@@ -98,15 +102,24 @@ static void finalize_control(void * ptr) {
 
 static lean_external_class * g_control_class = NULL;
 
+static pthread_once_t g_control_once = PTHREAD_ONCE_INIT;
+
+static void init_control_class(void) {
+  g_control_class = lean_register_external_class(&finalize_control, &noop_foreach);
+}
+
 lean_external_class * get_control_class(void) {
-  if (g_control_class == NULL) {
-    g_control_class = lean_register_external_class(&finalize_control, &noop_foreach);
-  }
+  pthread_once(&g_control_once, init_control_class);
   return g_control_class;
 }
 
 static void free_location(clingo_location_t * p) {
-
+  if (p->begin_file) {
+    free((void *)p->begin_file);
+  }
+  if (p->end_file) {
+    free((void *)p->end_file);
+  }
 }
 
 lean_object* location_to_lean(clingo_location_t v) {
@@ -122,8 +135,8 @@ lean_object* location_to_lean(clingo_location_t v) {
 
 clingo_location_t lean_to_location(b_lean_obj_arg obj) {
   clingo_location_t v;
-  v.begin_file = lean_string_cstr(lean_ctor_get(obj, 0));
-  v.end_file = lean_string_cstr(lean_ctor_get(obj, 1));
+  v.begin_file = strdup(lean_string_cstr(lean_ctor_get(obj, 0)));
+  v.end_file = strdup(lean_string_cstr(lean_ctor_get(obj, 1)));
   v.begin_line = (size_t)lean_ctor_get_usize(obj, 2);
   v.end_line = (size_t)lean_ctor_get_usize(obj, 3);
   v.begin_column = (size_t)lean_ctor_get_usize(obj, 4);
@@ -227,6 +240,7 @@ LEAN_EXPORT lean_obj_res lean_clingo_symbol_create_function(b_lean_obj_arg name,
   char const *name_c = lean_string_cstr(name);
   lean_array_object *arguments_arr_obj = lean_to_array(arguments);
   size_t arguments_size = arguments_arr_obj->m_size;
+  if (arguments_size > SIZE_MAX / sizeof(uint64_t)) lean_internal_panic("lean-bindgen: array size overflow");
   uint64_t *arguments_buf = (uint64_t *)malloc(sizeof(uint64_t) * (arguments_size > 0 ? arguments_size : 1));
   for (size_t _arr_i = 0; _arr_i < arguments_size; _arr_i++) {
     lean_array_object *_arr_obj = arguments_arr_obj;
