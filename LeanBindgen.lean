@@ -8,6 +8,10 @@ import LeanBindgen.C.Pretty
 import LeanBindgen.C.Token
 import LeanBindgen.C.Parser
 import LeanBindgen.Annotation
+import LeanBindgen.Gen.CShim
+import LeanBindgen.Gen.CShimPretty
+import LeanBindgen.Gen.LeanDecl
+import LeanBindgen.Gen.LeanDeclPretty
 import LeanBindgen.Codegen
 
 namespace LeanBindgen

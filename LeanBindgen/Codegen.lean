@@ -1,6 +1,10 @@
 import LeanBindgen.Annotation
 import LeanBindgen.C.Ast
 import LeanBindgen.C.Pretty
+import LeanBindgen.Gen.CShim
+import LeanBindgen.Gen.CShimPretty
+import LeanBindgen.Gen.LeanDecl
+import LeanBindgen.Gen.LeanDeclPretty
 import Std.Data.HashMap
 
 /-!
@@ -393,6 +397,7 @@ partial def resolveType
       | .callback        => .ok (callbackRT a.lean name)
       | .taggedUnion _   => .ok (structByValRT a.lean name)
       | .bitfieldStruct _ => .ok (bitfieldRT a.lean name)
+      | .eventCallback _ => .ok (callbackRT a.lean name)
     | none =>
       match stdintMap[name]? with
       | some r => .ok r
@@ -424,6 +429,7 @@ where
       | .taggedUnion _  => .ok (structByPtrRT a.lean name)
       | .bitfieldStruct _ => .ok (bitfieldRT a.lean name)
       | .callback => .error s!"`{name}` is a callback typedef; pointers to callbacks not supported"
+      | .eventCallback _ => .error s!"`{name}` is an event callback typedef; pointers not supported"
     | none =>
       match stdintMap[name]? with
       | some r => .ok { r with shimParam := r.shimParam ++ " *",
@@ -826,6 +832,40 @@ private def buildFunctionSignature
         return (leanType, allRes, elemRes, true)
       else .error s!"`{fa.cName}` sizeIdx {sizeIdx} out of range"
     else .error s!"`{fa.cName}` bufIdx {bufIdx} out of range"
+  | .multiOutParam outParamIndices =>
+    -- Void-return function with multiple out-params. Build a nested
+    -- Prod return type: (T₁ × T₂ × ... × Tₙ).
+    let mut outRes : Array ResolvedType := #[]
+    for idx in outParamIndices do
+      if h : idx < params.size then
+        let outParam := params[idx]
+        let .pointer pointee := outParam.type
+          | .error s!"multi-out-param `{outParam.name.getD "?"}` of `{fa.cName}` at index {idx} is not a pointer"
+        let pointeeRes ← resolveType anno pointee
+        outRes := outRes.push pointeeRes
+      else
+        .error s!"`{fa.cName}` has only {params.size} params but multiOutParam index {idx} is out of range"
+    -- Build the right-nested Prod type: (T₁ × T₂ × T₃) for 3 params
+    let prodTy := match outRes.size with
+      | 0 => "Unit"
+      | 1 => outRes[0]!.leanType
+      | _ =>
+        let inner := outRes.toList.map (·.leanType)
+        -- Right-associate: (A × B × C) = (A × (B × C))
+        inner.foldr (init := "") fun ty acc =>
+          if acc.isEmpty then ty else s!"({ty} × {acc})"
+    -- Drop all out-param indices from visible params.
+    let outIdxSet := outParamIndices.toList
+    let visibleParams := visibleByIdx.filter (fun (_, i) => !outIdxSet.contains i)
+                                     |>.map (fun (br, _) => br)
+    let parts := visibleParams.map (fun (b, r) => renderParamType r b)
+    let retTy := if fa.inIO then s!"IO {prodTy}" else prodTy
+    let leanType := " → ".intercalate (parts ++ [retTy])
+    let allRes := paramRes.map Prod.snd
+    -- Return the first out-param's resolved type as retRes (used
+    -- minimally by callers; the real return is the Prod).
+    let retRes' := if outRes.size > 0 then outRes[0]! else scalarRT "Unit" "void" 0 ""
+    return (leanType, allRes, retRes', fa.inIO)
 
 /-- Resolve the C-side extern symbol for a function annotation.
 Default is `lean_<cName>`; the user can override with `externSymbol`. -/
@@ -840,69 +880,84 @@ private def emitFunctionDecl
     (anno : Std.HashMap String TypeAnno)
     (declMap : Std.HashMap String CDecl)
     (fa : FunctionAnno)
-    : Except String String := do
+    : Except String Gen.LeanDecl := do
   let some decl := declMap[fa.cName]?
     | .error s!"function `{fa.cName}` not found in header"
   let (sig, _, _, _) ← buildFunctionSignature anno decl fa
   let externSym := externSymbolOf fa
   let leanShortName := fa.lean.splitOn "." |>.getLast!
-  return s!"@[extern \"{externSym}\"]\nopaque {leanShortName} : {sig}"
+  return .externOpaque externSym leanShortName sig
 
 /-- Emit a single type declaration. The `fieldTypes` map provides the
 already-resolved Lean type expression for each (struct's) Lean field
 name; only used by the `.structRecord` arm. -/
 private def emitTypeDecl
-    (ta : TypeAnno) (fieldTypes : Std.HashMap String String := {}) : String :=
+    (ta : TypeAnno) (fieldTypes : Std.HashMap String String := {}) : Array Gen.LeanDecl :=
   match ta.mapping with
   | .scalarNewtype k =>
-    s!"def {ta.lean} := {k.toLean}\n  deriving Repr, Inhabited"
+    #[.defAlias ta.lean k.toLean #["Repr", "Inhabited"]]
   | .opaquePointer _ =>
-    s!"opaque {ta.lean} : Type"
+    #[.opaque_ ta.lean "Type"]
   | .inductiveEnum em =>
-    let ctors := "\n".intercalate
-      (em.variants.toList.map (fun (_, leanV) => s!"  | {leanV}"))
-    s!"inductive {ta.lean} where\n{ctors}\n  deriving Repr, Inhabited, BEq"
+    let ctors := em.variants.map fun (_, leanV) => (leanV, none)
+    #[.inductive_ ta.lean ctors #["Repr", "Inhabited", "BEq"]]
   | .structRecord sm =>
-    let fields := "\n".intercalate
-      (sm.fields.toList.map (fun (_, leanF) =>
-        let ty := fieldTypes[leanF]?.getD "Unit"
-        s!"  {leanF} : {ty}"))
-    s!"structure {ta.lean} where\n{fields}\n  deriving Repr, Inhabited"
+    let fields := sm.fields.map fun (_, leanF) =>
+      (leanF, fieldTypes[leanF]?.getD "Unit")
+    #[.structure_ ta.lean fields #["Repr", "Inhabited"]]
   | .callback =>
-    -- The Lean arrow type goes here; the caller threads it in via
-    -- `fieldTypes` with the synthetic key `"__callback__"` (a hack to
-    -- avoid changing every `emitTypeDecl` call site).
     let arrow := fieldTypes["__callback__"]?.getD "Unit"
-    s!"def {ta.lean} := {arrow}"
+    #[.defAlias ta.lean arrow]
   | .taggedUnion tu =>
-    -- If there are shared fields, emit a wrapper structure plus
-    -- an inner inductive `<Name>.Data`. Otherwise, just the inductive.
     let dataName := if tu.sharedFields.isEmpty then ta.lean else s!"{ta.lean}.Data"
-    let ctors := "\n".intercalate
-      (tu.variants.toList.map (fun v =>
-        -- Payload types come from `fieldTypes` (populated by the caller
-        -- from resolved union field types).
-        let payloadArgs := match fieldTypes[s!"__variant__{v.leanCtor}"]? with
-          | some args => if args.isEmpty then "" else s!" ({args})"
-          | none      => ""
-        s!"  | {v.leanCtor}{payloadArgs}"))
-    let inductiveDecl :=
-      s!"inductive {dataName} where\n{ctors}\n  deriving Repr, Inhabited"
+    let ctors := tu.variants.map fun v =>
+      let payloadArgs := match fieldTypes[s!"__variant__{v.leanCtor}"]? with
+        | some args => if args.isEmpty then none else some args
+        | none      => none
+      (v.leanCtor, payloadArgs)
+    let inductiveDecl : Gen.LeanDecl :=
+      .inductive_ dataName ctors #["Repr", "Inhabited"]
     if tu.sharedFields.isEmpty then
-      inductiveDecl
+      #[inductiveDecl]
     else
-      let fields := "\n".intercalate
-        (tu.sharedFields.toList.map (fun (_, leanF) =>
-          let ty := fieldTypes[leanF]?.getD "Unit"
-          s!"  {leanF} : {ty}") ++
-        [s!"  data : {dataName}"])
-      let structDecl :=
-        s!"structure {ta.lean} where\n{fields}\n  deriving Repr, Inhabited"
-      inductiveDecl ++ "\n\n" ++ structDecl
+      let fields := tu.sharedFields.map fun (_, leanF) =>
+        (leanF, fieldTypes[leanF]?.getD "Unit")
+      let fields := fields.push ("data", dataName)
+      let structDecl : Gen.LeanDecl :=
+        .structure_ ta.lean fields #["Repr", "Inhabited"]
+      #[inductiveDecl, structDecl]
   | .bitfieldStruct bm =>
-    let fields := "\n".intercalate
-      (bm.fields.toList.map (fun (_, leanF) => s!"  {leanF} : Bool"))
-    s!"structure {ta.lean} where\n{fields}\n  deriving Repr, Inhabited"
+    let fields := bm.fields.map fun (_, leanF) => (leanF, "Bool")
+    #[.structure_ ta.lean fields #["Repr", "Inhabited"]]
+  | .eventCallback ec =>
+    -- Emit two declarations:
+    -- 1. An inductive for the event type with per-variant ctors
+    -- 2. A def alias for the callback type = EventType → IO ReturnType
+    let ctors := ec.variants.map fun v =>
+      let payloadStr := match v.interpretation with
+        | .opaquePtr leanTy true =>
+          some s!"(val : Option {leanTy})"
+        | .opaquePtr leanTy false =>
+          some s!"(val : {leanTy})"
+        | .derefMapped leanTy =>
+          some s!"(val : {leanTy})"
+        | .ptrArray leanTy count =>
+          if v.fieldNames.size >= count then
+            let fields := (List.range count).map fun i =>
+              let nm := v.fieldNames[i]?.getD s!"field{i}"
+              s!"({nm} : {leanTy})"
+            some (" ".intercalate fields)
+          else
+            -- Default field names
+            let fields := (List.range count).map fun i =>
+              s!"(field{i} : {leanTy})"
+            some (" ".intercalate fields)
+      (v.leanCtor, payloadStr)
+    let inductiveDecl : Gen.LeanDecl :=
+      .inductive_ ec.eventTypeName ctors #["Repr", "Inhabited"]
+    let callbackDef : Gen.LeanDecl :=
+      .defAlias ta.lean s!"{ec.eventTypeName} → IO {ec.leanReturnType}"
+    #[inductiveDecl, callbackDef]
 
 /-- Compute which Lean type names a type declaration's body refers to.
 Used for building the type-dependency graph for mutual-recursion
@@ -931,6 +986,17 @@ private def typeDependencies
         let paramRefs := params.toList.filterMap (fun p => extractTypedefRef p.type)
         paramRefs ++ (extractTypedefRef ret).toList
       | _ => []
+    | .eventCallback ec =>
+      -- Collect all Lean type names referenced by the variants and
+      -- look them up via the annotation map (reverse: Lean name → C name).
+      let leanToC : Std.HashMap String String :=
+        annoMap.fold (init := ({} : Std.HashMap _ _)) fun m cN ta => m.insert ta.lean cN
+      ec.variants.toList.filterMap fun v =>
+        let leanTy := match v.interpretation with
+          | .opaquePtr ty _ => ty
+          | .derefMapped ty => ty
+          | .ptrArray ty _  => ty
+        leanToC[leanTy]?
     | _ => []
   -- Map C typedef names back to Lean names via the annotation map.
   cNames.filterMap fun cn => (annoMap[cn]?).map (·.lean)
@@ -1008,19 +1074,13 @@ def emitLeanModule (b : Bindings) (h : CHeader) : Except String String := do
       | .function name .. => m.insert name d
       | .typedef name _   => m.insert name d
       | _ => m) ({} : Std.HashMap _ _)
-  let header :=
-    s!"-- Auto-generated by lean-bindgen. Do not edit.\n"
-  let imports :=
-    "\n".intercalate (b.leanImports.toList.map (s!"import {·}"))
-  let nsOpen :=
-    s!"\nnamespace {b.leanModule}\n"
   -- Type defs. For struct/callback mappings we need extra info
   -- threaded into emitTypeDecl: per-field types for structs, the
   -- derived Lean arrow type for callbacks.
-  -- Build a per-TypeAnno rendered string map first.
-  let mut renderedByLean : Std.HashMap String String := {}
+  -- Build a per-TypeAnno rendered decl array map first.
+  let mut declsByLean : Std.HashMap String (Array Gen.LeanDecl) := {}
   for ta in b.types do
-    let rendered ← match ta.mapping with
+    let decls ← match ta.mapping with
     | .structRecord sm =>
       let fields ← resolveStructFields h typeAnnoMap sm
       let mut m : Std.HashMap String String := {}
@@ -1060,7 +1120,7 @@ def emitLeanModule (b : Bindings) (h : CHeader) : Except String String := do
           m := m.insert s!"__variant__{v.leanCtor}" s!"(val : {r.leanType})"
       pure (emitTypeDecl ta m)
     | _ => pure (emitTypeDecl ta)
-    renderedByLean := renderedByLean.insert ta.lean rendered
+    declsByLean := declsByLean.insert ta.lean decls
   -- Compute SCCs to detect mutual recursion.
   let typeNodes := b.types.map (·.lean)
   let mut adj : Std.HashMap String (List String) := {}
@@ -1071,29 +1131,30 @@ def emitLeanModule (b : Bindings) (h : CHeader) : Except String String := do
   -- Emit each SCC in forward topological order (dependencies first).
   -- Size-1 components are emitted as-is; size > 1 get wrapped in
   -- `mutual ... end`.
-  let mut typeBlocks : Array String := #[]
+  let mut typeDecls : Array Gen.LeanDecl := #[]
   for scc in sccs do
     if scc.size ≤ 1 then
       for name in scc do
-        if let some rendered := renderedByLean[name]? then
-          typeBlocks := typeBlocks.push rendered
+        if let some decls := declsByLean[name]? then
+          typeDecls := typeDecls ++ decls
     else
-      let mut parts : Array String := #[]
+      let mut parts : Array Gen.LeanDecl := #[]
       for name in scc do
-        if let some rendered := renderedByLean[name]? then
-          parts := parts.push rendered
-      typeBlocks := typeBlocks.push
-        ("mutual\n\n" ++ "\n\n".intercalate parts.toList ++ "\n\nend")
-  let typeBlock := "\n\n".intercalate typeBlocks.toList
+        if let some decls := declsByLean[name]? then
+          parts := parts ++ decls
+      typeDecls := typeDecls.push (.mutual_ parts)
   -- Function decls
-  let mut fnBlock := #[]
+  let mut fnDecls : Array Gen.LeanDecl := #[]
   for fa in b.functions do
-    fnBlock := fnBlock.push (← emitFunctionDecl b typeAnnoMap declMap fa)
-  let fnText := "\n\n".intercalate fnBlock.toList
-  let nsClose := s!"\n\nend {b.leanModule}\n"
-  return header ++ imports ++ nsOpen ++ "\n" ++ typeBlock ++
-         (if typeBlock = "" then "" else "\n\n") ++
-         fnText ++ nsClose
+    fnDecls := fnDecls.push (← emitFunctionDecl b typeAnnoMap declMap fa)
+  let allDecls := typeDecls ++ fnDecls
+  let mod : Gen.LeanModule := {
+    headerComment := some "Auto-generated by lean-bindgen. Do not edit."
+    imports := b.leanImports.map toString
+    namespace_ := some (toString b.leanModule)
+    decls := allDecls
+  }
+  return mod.render
 
 /-! ## Shim emitter -/
 
@@ -1287,7 +1348,7 @@ private def emitShimFunction
     (anno : Std.HashMap String TypeAnno)
     (declMap : Std.HashMap String CDecl)
     (fa : FunctionAnno)
-    : Except String String := do
+    : Except String Gen.CTopLevel := do
   let some decl := declMap[fa.cName]?
     | .error s!"function `{fa.cName}` not found in header"
   let (_, allRes, retRes, inIO) ← buildFunctionSignature anno decl fa
@@ -1314,8 +1375,8 @@ private def emitShimFunction
         | "Bool"   => "uint8_t"
         | _        => retRes.shimReturn
     let body := directShimBody decl fa allRes retRes fa.cName inIO
-    return s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
-           body ++ "\n}"
+    return .raw (s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
+           body ++ "\n}")
   | .outParamBoolStatus outIdx error =>
     -- Drop the out-param from the shim signature, allocate a local for
     -- it, call the C function, branch on the bool.
@@ -1403,10 +1464,10 @@ private def emitShimFunction
         | .tuple codeFn eLean msgFn =>
           let (_, toLeanFn) := enumHelpers eLean
           s!"\{\n      {postBlock}lean_object* code = lean_box({toLeanFn}({codeFn}()));\n      char const *msg = {msgFn}();\n      if (msg == NULL) msg = \"\";\n      lean_object* pair = lean_alloc_ctor(0, 2, 0);\n      lean_ctor_set(pair, 0, code);\n      lean_ctor_set(pair, 1, lean_mk_string(msg));\n      lean_object* err = lean_alloc_ctor(0, 1, 0);\n      lean_ctor_set(err, 0, pair);\n      return lean_io_result_mk_ok(err);\n    }"
-      return s!"LEAN_EXPORT lean_obj_res {externSym}({", ".intercalate plist.toList}) \{\n" ++
+      return .raw (s!"LEAN_EXPORT lean_obj_res {externSym}({", ".intercalate plist.toList}) \{\n" ++
              outDecl ++ "\n" ++
              (if preludeStr = "" then "" else preludeStr ++ "\n") ++
-             s!"  if ({fa.cName}({", ".intercalate callArgs.toList})) " ++ okBlock ++ " else " ++ errBlock ++ "\n}"
+             s!"  if ({fa.cName}({", ".intercalate callArgs.toList})) " ++ okBlock ++ " else " ++ errBlock ++ "\n}")
     else
       .error s!"`{fa.cName}` has only {params.size} params but outParamIdx is {outIdx}"
   | .boolStatus error =>
@@ -1451,9 +1512,9 @@ private def emitShimFunction
       | .tuple codeFn eLean msgFn =>
         let (_, toLeanFn) := enumHelpers eLean
         s!"\{\n      {postBlock}lean_object* code = lean_box({toLeanFn}({codeFn}()));\n      char const *msg = {msgFn}();\n      if (msg == NULL) msg = \"\";\n      lean_object* pair = lean_alloc_ctor(0, 2, 0);\n      lean_ctor_set(pair, 0, code);\n      lean_ctor_set(pair, 1, lean_mk_string(msg));\n      lean_object* err = lean_alloc_ctor(0, 1, 0);\n      lean_ctor_set(err, 0, pair);\n      return lean_io_result_mk_ok(err);\n    }"
-    return s!"LEAN_EXPORT lean_obj_res {externSym}({", ".intercalate plist.toList}) \{\n" ++
+    return .raw (s!"LEAN_EXPORT lean_obj_res {externSym}({", ".intercalate plist.toList}) \{\n" ++
            (if preludeStr = "" then "" else preludeStr ++ "\n") ++
-           s!"  if ({fa.cName}({", ".intercalate callArgs.toList})) " ++ okBlock ++ " else " ++ errBlock ++ "\n}"
+           s!"  if ({fa.cName}({", ".intercalate callArgs.toList})) " ++ okBlock ++ " else " ++ errBlock ++ "\n}")
   | .optionOutParam outIdx =>
     -- Same structure as outParamBoolStatus but wraps in Option instead
     -- of Except.  Option.some = ctor 1 (1 field), Option.none = lean_box(0).
@@ -1523,10 +1584,10 @@ private def emitShimFunction
         (if fa.inIO then s!"return lean_io_result_mk_ok(lean_box(0));\n    }"
          else s!"return lean_box(0);\n    }")
       let cRet := if fa.inIO then "lean_obj_res" else "lean_obj_res"
-      return s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
+      return .raw (s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
              outDecl ++ "\n" ++
              (if preludeStr = "" then "" else preludeStr ++ "\n") ++
-             s!"  if ({fa.cName}({", ".intercalate callArgs.toList})) " ++ someBlock ++ " else " ++ noneBlock ++ "\n}"
+             s!"  if ({fa.cName}({", ".intercalate callArgs.toList})) " ++ someBlock ++ " else " ++ noneBlock ++ "\n}")
     else
       .error s!"`{fa.cName}` has only {params.size} params but outParamIdx is {outIdx}"
   | .voidOutParam outIdx =>
@@ -1583,11 +1644,11 @@ private def emitShimFunction
           match pointeeRes.returnMarshal with
           | .passthrough => s!"  return ({pointeeRes.cLocalType}){outName};"
           | _ => s!"  return {valExpr};"
-      return s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
+      return .raw (s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
              outDecl ++ "\n" ++
              (if preludeStr = "" then "" else preludeStr ++ "\n") ++
              s!"  {fa.cName}({", ".intercalate callArgs.toList});\n" ++
-             retStmt ++ "\n}"
+             retStmt ++ "\n}")
     else
       .error s!"`{fa.cName}` has only {params.size} params but outParamIdx is {outIdx}"
   | .optionOutArray ptrIdx sizeIdx =>
@@ -1646,13 +1707,13 @@ private def emitShimFunction
         let noneBlock :=
           if fa.inIO then s!"    return lean_io_result_mk_ok(lean_box(0));"
           else s!"    return lean_box(0);"
-        return s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
+        return .raw (s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
                s!"  {elemRes.cLocalType} const *{ptrName} = NULL;\n" ++
                s!"  size_t {sizeName} = 0;\n" ++
                (if preludeStr = "" then "" else preludeStr ++ "\n") ++
                s!"  if ({fa.cName}({", ".intercalate callArgs.toList})) \{\n" ++
                someBlock ++ "\n  } else {\n" ++
-               noneBlock ++ "\n  }\n}"
+               noneBlock ++ "\n  }\n}")
       else .error s!"`{fa.cName}` sizeIdx out of range"
     else .error s!"`{fa.cName}` ptrIdx out of range"
   | .callerAllocates sizeFn bufIdx sizeIdx error =>
@@ -1758,7 +1819,7 @@ private def emitShimFunction
             s!"  lean_object* ok = lean_alloc_ctor(1, 1, 0);\n" ++
             s!"  lean_ctor_set(ok, 0, arr);\n" ++
             s!"  return lean_io_result_mk_ok(ok);"
-        return s!"LEAN_EXPORT lean_obj_res {externSym}({", ".intercalate plist.toList}) \{\n" ++
+        return .raw (s!"LEAN_EXPORT lean_obj_res {externSym}({", ".intercalate plist.toList}) \{\n" ++
                (if preludeStr = "" then "" else preludeStr ++ "\n") ++
                s!"  size_t _size = 0;\n" ++
                s!"  if (!{sizeFn}({", ".intercalate sizeCallArgs.toList})) \{\n" ++
@@ -1766,15 +1827,108 @@ private def emitShimFunction
                s!"  {elemRes.cLocalType} *_buf = ({elemRes.cLocalType} *)malloc(sizeof({elemRes.cLocalType}) * (_size > 0 ? _size : 1));\n" ++
                s!"  if (!{fa.cName}({", ".intercalate mainCallArgs.toList})) \{\n" ++
                errBlock2 ++ "\n  }\n" ++
-               okBody ++ "\n}"
+               okBody ++ "\n}")
       else .error s!"`{fa.cName}` sizeIdx out of range"
     else .error s!"`{fa.cName}` bufIdx out of range"
+  | .multiOutParam outParamIndices =>
+    -- Void-return function with multiple out-params. Allocate a local
+    -- for each, call the C function, build right-nested Prod.mk ctors.
+    let outIdxSet := outParamIndices.toList
+    let arraySizeIndices := fa.arrayPairs.map Prod.snd
+    let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices
+    let visible := allRes.zipIdx.filter (fun (_, i) =>
+      !outIdxSet.contains i && !hiddenOut.contains i)
+    let plist := visible.map (fun (r, i) =>
+      let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
+      s!"{r.shimParam} {nm}")
+    -- Resolve each out-param's pointee type.
+    let mut outInfos : Array (String × ResolvedType) := #[]
+    for idx in outParamIndices do
+      if h : idx < params.size then
+        let outName := (params[idx].name).getD s!"arg{idx}"
+        let .pointer pointee := params[idx].type
+          | .error "multi-out-param is not a pointer (shim)"
+        let pointeeRes ← resolveType anno pointee
+        outInfos := outInfos.push (outName, pointeeRes)
+    -- Build prelude + call args (including &outName for each out-param).
+    let mut prelude  : Array String := #[]
+    let mut callArgs : Array String := #[]
+    for h : i in [:allRes.size] do
+      let r := allRes[i]
+      let nm := (params[i]?.bind (·.name)).getD s!"arg{i}"
+      if outIdxSet.contains i then
+        callArgs := callArgs.push s!"&{nm}"
+      else if hiddenOut.contains i then
+        continue
+      else
+        let (pre, exprs, _) := renderParamPass r nm
+        prelude  := prelude ++ pre
+        callArgs := callArgs ++ exprs
+    let preludeStr := "\n".intercalate prelude.toList
+    -- Out-param local declarations.
+    let mut outDecls : Array String := #[]
+    for (outName, pointeeRes) in outInfos do
+      outDecls := outDecls.push s!"  {pointeeRes.cLocalType} {outName};"
+    -- Box each result.
+    let mut boxExprs : Array String := #[]
+    for (outName, pointeeRes) in outInfos do
+      let boxed := match pointeeRes.returnMarshal with
+        | .externalAlloc getter =>
+          s!"lean_alloc_external({getter}(), (void *){outName})"
+        | .enumHelper fn =>
+          s!"lean_box({fn}({outName}))"
+        | .leanString =>
+          s!"lean_mk_string({outName} == NULL ? \"\" : {outName})"
+        | .toLeanStruct fn =>
+          s!"{fn}({outName})"
+        | _ => boxScalarExpr pointeeRes outName
+      boxExprs := boxExprs.push boxed
+    -- Build right-nested Prod.mk: lean_alloc_ctor(0, 2, 0) is Prod.mk.
+    -- For n out-params: (a, (b, (c, d))) built bottom-up.
+    let mut prodLines : Array String := #[]
+    if boxExprs.size == 0 then
+      prodLines := prodLines.push s!"  lean_object* _result = lean_box(0);"
+    else if boxExprs.size == 1 then
+      prodLines := prodLines.push s!"  lean_object* _result = {boxExprs[0]!};"
+    else
+      -- Build from right to left: the last element is the innermost.
+      -- For [a, b, c]: first box c as _p2, then pair (b, _p2) as _p1,
+      -- then pair (a, _p1) as _result.
+      let n := boxExprs.size
+      -- The rightmost element.
+      prodLines := prodLines.push s!"  lean_object* _p{n - 1} = {boxExprs[n - 1]!};"
+      -- Build pairs from right to left.
+      let mut i := n - 2
+      while i > 0 do
+        prodLines := prodLines ++ #[
+          s!"  lean_object* _t{i} = lean_alloc_ctor(0, 2, 0);",
+          s!"  lean_ctor_set(_t{i}, 0, {boxExprs[i]!});",
+          s!"  lean_ctor_set(_t{i}, 1, _p{i + 1});",
+          s!"  lean_object* _p{i} = _t{i};"
+        ]
+        i := i - 1
+      -- Outermost pair.
+      prodLines := prodLines ++ #[
+        s!"  lean_object* _result = lean_alloc_ctor(0, 2, 0);",
+        s!"  lean_ctor_set(_result, 0, {boxExprs[0]!});",
+        s!"  lean_ctor_set(_result, 1, _p1);"
+      ]
+    let cRet := if fa.inIO then "lean_obj_res" else "lean_obj_res"
+    let retStmt :=
+      if fa.inIO then "  return lean_io_result_mk_ok(_result);"
+      else "  return _result;"
+    return .raw (s!"LEAN_EXPORT {cRet} {externSym}({", ".intercalate plist.toList}) \{\n" ++
+           "\n".intercalate outDecls.toList ++ "\n" ++
+           (if preludeStr = "" then "" else preludeStr ++ "\n") ++
+           s!"  {fa.cName}({", ".intercalate callArgs.toList});\n" ++
+           "\n".intercalate prodLines.toList ++ "\n" ++
+           retStmt ++ "\n}")
 
 /-- Emit the pair of static helper functions converting between a
 Lean inductive-encoded enum and the underlying C int. -/
 private def emitEnumHelpers
     (h : CHeader) (ta : TypeAnno) (em : EnumMapping)
-    : Except String String := do
+    : Except String (Array Gen.CTopLevel) := do
   let some headerVariants := lookupEnumTag h em.enumTag
     | .error s!"enum tag `{em.enumTag}` not found in header"
   -- Build a name → C-int map from the parsed header.
@@ -1791,25 +1945,21 @@ private def emitEnumHelpers
       | .error s!"variant `{cV}` not found in enum `{em.enumTag}`"
     pairs := pairs.push (cV, leanV, cVal)
   let (toC, toLean) := enumHelpers ta.lean
-  let toCcases := "\n".intercalate
-    (pairs.toList.zipIdx.map fun ((cV, _, _), i) =>
-      s!"    case {i}: return {cV};")
-  let toCDef :=
-    s!"static {ta.cName} {toC}(uint8_t cidx) \{\n" ++
-    s!"  switch (cidx) \{\n" ++
-    toCcases ++ "\n" ++
-    s!"    default: return ({ta.cName})0;\n" ++
-    "  }\n}"
-  let toLeanCases := "\n".intercalate
-    (pairs.toList.zipIdx.map fun ((cV, _, _), i) =>
-      s!"    case {cV}: return {i};")
-  let toLeanDef :=
-    s!"static uint8_t {toLean}({ta.cName} v) \{\n" ++
-    s!"  switch (v) \{\n" ++
-    toLeanCases ++ "\n" ++
-    s!"    default: return 0;\n" ++
-    "  }\n}"
-  return toCDef ++ "\n\n" ++ toLeanDef
+  -- toC: uint8_t cidx → C enum value
+  let toCCases := pairs.zipIdx.map fun ((cV, _, _), i) =>
+    (.intLit i, #[.ret (some (.var cV))])
+  let toCDefault := #[.ret (some (.cast ta.cName (.intLit 0)))]
+  let toCDef : Gen.CTopLevel := .funcDef .static_ ta.cName toC
+    #[⟨"uint8_t", "cidx"⟩]
+    #[.switch (.var "cidx") toCCases toCDefault]
+  -- toLean: C enum value → uint8_t cidx
+  let toLeanCases := pairs.zipIdx.map fun ((cV, _, _), i) =>
+    (.var cV, #[.ret (some (.intLit i))])
+  let toLeanDefault := #[.ret (some (.intLit 0))]
+  let toLeanDef : Gen.CTopLevel := .funcDef .static_ "uint8_t" toLean
+    #[⟨ta.cName, "v"⟩]
+    #[.switch (.var "v") toLeanCases toLeanDefault]
+  return #[toCDef, toLeanDef]
 
 /-- Reorder resolved fields to match Lean's runtime ctor layout:
 1. Pointer (boxed) fields — declaration order
@@ -1839,110 +1989,102 @@ first, then USize scalars, then other scalars by descending size. -/
 private def emitStructHelpers
     (h : CHeader) (anno : Std.HashMap String TypeAnno)
     (ta : TypeAnno) (sm : StructMapping)
-    : Except String String := do
+    : Except String (Array Gen.CTopLevel) := do
   let fields ← resolveStructFields h anno sm
-  -- Reorder to match Lean's runtime ctor layout.
   let layoutFields := reorderForCtorLayout fields
   let boxedCount := layoutFields.filter (·.2.2.isBoxedInCtor) |>.size
   let usizeCount := layoutFields.filter (fun f => !f.2.2.isBoxedInCtor && f.2.2.ctorScalar == "usize") |>.size
-  let scalarBytes := layoutFields.foldl (init := 0) (· + ·.2.2.cByteSize)
+  let scalarBytes : Nat := layoutFields.foldl (init := 0) (· + ·.2.2.cByteSize)
   let (toC, toLean) := structHelperNames ta.lean
   let cTypedef := ta.cName
-  -- Walk in layout order: boxed → USize → other scalars.
-  let mut toLeanLines : Array String := #[]
-  let mut toCLines    : Array String := #[]
+  let mut toLeanStmts : Array Gen.CStmt := #[
+    .varDecl "lean_object*" "o" (some (.call "lean_alloc_ctor"
+      #[.intLit 0, .intLit boxedCount, .intLit scalarBytes]))
+  ]
+  let mut toCStmts : Array Gen.CStmt := #[.varDecl cTypedef "v"]
   let mut boxedIdx : Nat := 0
   let mut usizeIdx : Nat := 0
-  -- Non-USize scalar byte offset starts after boxed + USize slots.
   let mut scalarOff : Nat := (boxedCount + usizeCount) * 8
   for (cField, _leanField, r) in layoutFields do
     if r.isBoxedInCtor then
+      -- toLean: boxed field
       match r.returnMarshal with
-      | .array cElemTy elem =>
-        -- Array field: build Lean Array from C array.
+      | .array _cElemTy elem =>
         let sizeField := (sm.arrayFields.find? (·.1 = cField)).map (·.2) |>.getD "size"
         let boxExpr := match elem with
           | .scalar _ suffix => s!"lean_box{suffix}(v.{cField}[_i])"
           | .string => s!"lean_mk_string(v.{cField}[_i] == NULL ? \"\" : v.{cField}[_i])"
           | .enumHelper _ toLeanFn => s!"lean_box({toLeanFn}(v.{cField}[_i]))"
           | .structHelper _ toLeanFn => s!"{toLeanFn}(v.{cField}[_i])"
-        toLeanLines := toLeanLines.push s!"  \{"
-        toLeanLines := toLeanLines.push s!"    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.{sizeField}));"
-        toLeanLines := toLeanLines.push s!"    for (size_t _i = 0; _i < v.{sizeField}; _i++) \{"
-        toLeanLines := toLeanLines.push s!"      _arr = lean_array_push(_arr, {boxExpr});"
-        toLeanLines := toLeanLines.push s!"    }"
-        toLeanLines := toLeanLines.push s!"    lean_ctor_set(o, {boxedIdx}, _arr);"
-        toLeanLines := toLeanLines.push s!"  }"
+        toLeanStmts := toLeanStmts.push (.block #[
+          .varDecl "lean_object*" "_arr" (some (.call "lean_mk_empty_array_with_capacity"
+            #[.call "lean_usize_to_nat" #[.raw s!"v.{sizeField}"]])),
+          .forLoop "size_t _i = 0" s!"_i < v.{sizeField}" "_i++" #[
+            .assign (.var "_arr") (.call "lean_array_push" #[.var "_arr", .raw boxExpr])
+          ],
+          .expr (.call "lean_ctor_set" #[.var "o", .intLit boxedIdx, .var "_arr"])
+        ])
       | _ =>
         let toLeanExpr := match r.returnMarshal with
           | .leanString       => s!"lean_mk_string(v.{cField} == NULL ? \"\" : v.{cField})"
           | .toLeanStruct fn  =>
-            if r.isPtrToStruct
-            then s!"{fn}(*v.{cField})"    -- dereference pointer-to-struct
-            else s!"{fn}(v.{cField})"     -- by-value
+            if r.isPtrToStruct then s!"{fn}(*v.{cField})" else s!"{fn}(v.{cField})"
           | .enumHelper fn    => s!"lean_box({fn}(v.{cField}))"
           | .externalAlloc gt => s!"lean_alloc_external({gt}(), (void *)(v.{cField}))"
           | _                 => s!"/* unsupported boxed field {cField} of type {r.leanType} */ NULL"
-        toLeanLines := toLeanLines.push s!"  lean_ctor_set(o, {boxedIdx}, {toLeanExpr});"
+        toLeanStmts := toLeanStmts.push (.expr (.call "lean_ctor_set"
+          #[.var "o", .intLit boxedIdx, .raw toLeanExpr]))
+      -- toC: boxed field
       match r.paramMarshal with
       | .array cElemTy elem =>
-        -- Array field: build C array from Lean Array.
         let sizeField := (sm.arrayFields.find? (·.1 = cField)).map (·.2) |>.getD "size"
         let unboxExpr := match elem with
           | .scalar shimTy suffix => s!"({shimTy})lean_unbox{suffix}(_arr_obj->m_data[_i])"
           | .string => s!"lean_string_cstr(_arr_obj->m_data[_i])"
           | .enumHelper toCFn _ => s!"{toCFn}((uint8_t)lean_unbox(_arr_obj->m_data[_i]))"
           | .structHelper toCFn _ => s!"{toCFn}(_arr_obj->m_data[_i])"
-        toCLines := toCLines.push s!"  \{"
-        toCLines := toCLines.push s!"    lean_array_object *_arr_obj = lean_to_array(lean_ctor_get(obj, {boxedIdx}));"
-        toCLines := toCLines.push s!"    v.{sizeField} = _arr_obj->m_size;"
-        toCLines := toCLines.push s!"    v.{cField} = ({cElemTy} *)malloc(sizeof({cElemTy}) * (v.{sizeField} > 0 ? v.{sizeField} : 1));"
-        toCLines := toCLines.push s!"    for (size_t _i = 0; _i < v.{sizeField}; _i++) \{"
-        toCLines := toCLines.push s!"      (({cElemTy} *)v.{cField})[_i] = {unboxExpr};"
-        toCLines := toCLines.push s!"    }"
-        toCLines := toCLines.push s!"  }"
+        toCStmts := toCStmts.push (.block #[
+          .varDecl "lean_array_object *" "_arr_obj" (some (.call "lean_to_array"
+            #[.call "lean_ctor_get" #[.var "obj", .intLit boxedIdx]])),
+          .raw s!"v.{sizeField} = _arr_obj->m_size;",
+          .raw s!"v.{cField} = ({cElemTy} *)malloc(sizeof({cElemTy}) * (v.{sizeField} > 0 ? v.{sizeField} : 1));",
+          .forLoop "size_t _i = 0" s!"_i < v.{sizeField}" "_i++" #[
+            .raw s!"(({cElemTy} *)v.{cField})[_i] = {unboxExpr};"
+          ]
+        ])
       | .fromLeanStruct fn cTy true =>
-        -- Pointer-to-struct: malloc + assign through pointer
-        toCLines := toCLines.push s!"  v.{cField} = ({cTy} *)malloc(sizeof({cTy}));"
-        toCLines := toCLines.push s!"  *({cTy} *)v.{cField} = {fn}(lean_ctor_get(obj, {boxedIdx}));"
+        toCStmts := toCStmts.push (.raw s!"v.{cField} = ({cTy} *)malloc(sizeof({cTy}));")
+        toCStmts := toCStmts.push (.raw s!"*({cTy} *)v.{cField} = {fn}(lean_ctor_get(obj, {boxedIdx}));")
       | .leanString =>
-        toCLines := toCLines.push s!"  v.{cField} = lean_string_cstr(lean_ctor_get(obj, {boxedIdx}));"
+        toCStmts := toCStmts.push (.raw s!"v.{cField} = lean_string_cstr(lean_ctor_get(obj, {boxedIdx}));")
       | .fromLeanStruct fn _ false =>
-        toCLines := toCLines.push s!"  v.{cField} = {fn}(lean_ctor_get(obj, {boxedIdx}));"
+        toCStmts := toCStmts.push (.raw s!"v.{cField} = {fn}(lean_ctor_get(obj, {boxedIdx}));")
       | .enumHelper fn =>
-        toCLines := toCLines.push s!"  v.{cField} = {fn}((uint8_t)lean_unbox(lean_ctor_get(obj, {boxedIdx})));"
+        toCStmts := toCStmts.push (.raw s!"v.{cField} = {fn}((uint8_t)lean_unbox(lean_ctor_get(obj, {boxedIdx})));")
       | .externalData cTy =>
-        toCLines := toCLines.push s!"  v.{cField} = ({cTy}) lean_get_external_data(lean_ctor_get(obj, {boxedIdx}));"
+        toCStmts := toCStmts.push (.raw s!"v.{cField} = ({cTy}) lean_get_external_data(lean_ctor_get(obj, {boxedIdx}));")
       | _ =>
-        toCLines := toCLines.push s!"  v.{cField} = /* unsupported boxed field {cField} */ NULL;"
+        toCStmts := toCStmts.push (.raw s!"v.{cField} = /* unsupported boxed field {cField} */ NULL;")
       boxedIdx := boxedIdx + 1
     else if r.ctorScalar == "usize" then
-      -- USize fields use slot index: lean_ctor_{get,set}_usize(o, num_objs + j)
       let slotIdx := boxedCount + usizeIdx
-      toLeanLines := toLeanLines.push
-        s!"  lean_ctor_set_usize(o, {slotIdx}, (size_t)v.{cField});"
-      toCLines := toCLines.push
-        s!"  v.{cField} = ({r.shimReturn})lean_ctor_get_usize(obj, {slotIdx});"
+      toLeanStmts := toLeanStmts.push (.expr (.call s!"lean_ctor_set_usize"
+        #[.var "o", .intLit slotIdx, .cast "size_t" (.field (.var "v") cField)]))
+      toCStmts := toCStmts.push (.raw s!"v.{cField} = ({r.shimReturn})lean_ctor_get_usize(obj, {slotIdx});")
       usizeIdx := usizeIdx + 1
     else
-      -- Other scalars use byte offset starting after boxed + USize area.
       let suffix := r.ctorScalar
-      toLeanLines := toLeanLines.push
-        s!"  lean_ctor_set_{suffix}(o, {scalarOff}, ({r.shimReturn})v.{cField});"
-      toCLines := toCLines.push
-        s!"  v.{cField} = ({r.shimReturn})lean_ctor_get_{suffix}(obj, {scalarOff});"
+      toLeanStmts := toLeanStmts.push (.expr (.call s!"lean_ctor_set_{suffix}"
+        #[.var "o", .intLit scalarOff, .cast r.shimReturn (.field (.var "v") cField)]))
+      toCStmts := toCStmts.push (.raw s!"v.{cField} = ({r.shimReturn})lean_ctor_get_{suffix}(obj, {scalarOff});")
       scalarOff := scalarOff + r.cByteSize
-  let toLeanFn :=
-    s!"lean_object* {toLean}({cTypedef} v) \{\n" ++
-    s!"  lean_object* o = lean_alloc_ctor(0, {boxedCount}, {scalarBytes});\n" ++
-    "\n".intercalate toLeanLines.toList ++ "\n" ++
-    s!"  return o;\n}"
-  let toCFn :=
-    s!"{cTypedef} {toC}(b_lean_obj_arg obj) \{\n" ++
-    s!"  {cTypedef} v;\n" ++
-    "\n".intercalate toCLines.toList ++ "\n" ++
-    s!"  return v;\n}"
-  return toLeanFn ++ "\n\n" ++ toCFn
+  toLeanStmts := toLeanStmts.push (.ret (some (.var "o")))
+  toCStmts := toCStmts.push (.ret (some (.var "v")))
+  let toLeanFn : Gen.CTopLevel := .funcDef .plain "lean_object*" toLean
+    #[⟨cTypedef, "v"⟩] toLeanStmts
+  let toCFn : Gen.CTopLevel := .funcDef .plain cTypedef toC
+    #[⟨"b_lean_obj_arg", "obj"⟩] toCStmts
+  return #[toLeanFn, toCFn]
 
 /-- Emit the pair of conversion helpers for a tagged union: a C→Lean
 function that switches on the tag field and builds the appropriate
@@ -2200,7 +2342,7 @@ Handles:
   trampoline) -/
 private def emitCallbackTrampoline
     (h : CHeader) (anno : Std.HashMap String TypeAnno) (ta : TypeAnno)
-    : Except String String := do
+    : Except String Gen.CTopLevel := do
   let (ret, params, _) ← callbackSignature h ta.cName
   let layout ← analyzeCallbackLayout params anno
   let nestedCBIdxs := layout.nestedCallbacks.toList.map Prod.fst
@@ -2298,7 +2440,7 @@ private def emitCallbackTrampoline
     s!"  lean_object* _result = lean_apply_{arity}(closure, {", ".intercalate applyArgs});\n" ++
     returnBlock ++
     "}"
-  return body
+  return .raw body
 
 /-- Emit a reverse trampoline for a callback typedef used as a nested
 callback (Lean→C). When Lean invokes an inner callback closure, this
@@ -2310,7 +2452,7 @@ Returns `none` if this callback typedef is never used as a nested
 callback (i.e., never appears as a param in another callback). -/
 private def emitReverseTrampoline
     (h : CHeader) (anno : Std.HashMap String TypeAnno) (ta : TypeAnno)
-    : Except String String := do
+    : Except String Gen.CTopLevel := do
   let (ret, params, _) ← callbackSignature h ta.cName
   let layout ← analyzeCallbackLayout params anno
   let arrayDataIdxs := layout.arrayPairs.toList.map Prod.fst
@@ -2388,8 +2530,8 @@ private def emitReverseTrampoline
     bodyLines := bodyLines ++ cleanupLines
     let boxed := marshalCToLean retRes "_ret"
     bodyLines := bodyLines.push s!"  return lean_io_result_mk_ok({boxed});"
-  return s!"LEAN_EXPORT lean_obj_res {reverseName}({", ".intercalate sigParams.toList}) \{\n" ++
-         "\n".intercalate bodyLines.toList ++ "\n}"
+  return .raw (s!"LEAN_EXPORT lean_obj_res {reverseName}({", ".intercalate sigParams.toList}) \{\n" ++
+         "\n".intercalate bodyLines.toList ++ "\n}")
 
 /-- Check whether a callback typedef is referenced as a nested callback
 inside any other callback typedef. -/
@@ -2416,7 +2558,7 @@ The toLean function unpacks individual bits into a Lean struct of Bools;
 the toC function packs them back. -/
 private def emitBitfieldHelpers
     (h : CHeader) (ta : TypeAnno) (bm : BitfieldMapping)
-    : Except String String := do
+    : Except String (Array Gen.CTopLevel) := do
   let (toC, toLean) := structHelperNames ta.lean
   let numFields := bm.fields.size
   -- Look up the enum to resolve mask values.
@@ -2426,53 +2568,66 @@ private def emitBitfieldHelpers
   let resolveVal (cConst : String) : Except String String := do
     match enumVariants.find? (·.1 == cConst) with
     | some (_, some v) => .ok (toString v)
-    | some (_, none)   => .ok cConst  -- no explicit value; use the constant name
+    | some (_, none)   => .ok cConst
     | none             => .error s!"bitfield constant `{cConst}` not found in enum `{bm.enumTag}`"
   -- toLean: C unsigned → Lean struct
-  let mut toLeanBody := s!"lean_object* {toLean}({ta.cName} v) \{\n"
-  toLeanBody := toLeanBody ++ s!"  lean_object *obj = lean_alloc_ctor(0, 0, {numFields});\n"
-  toLeanBody := toLeanBody ++ "  uint8_t *sp = lean_ctor_scalar_cptr(obj);\n"
+  let mut toLeanStmts : Array Gen.CStmt := #[
+    .varDecl "lean_object *" "obj" (some (.call "lean_alloc_ctor" #[.intLit 0, .intLit 0, .intLit numFields])),
+    .varDecl "uint8_t *" "sp" (some (.call "lean_ctor_scalar_cptr" #[.var "obj"]))
+  ]
   for (cConst, _) in bm.fields, i in List.range numFields do
     let mask ← resolveVal cConst
-    toLeanBody := toLeanBody ++ s!"  sp[{i}] = (v & {mask}) != 0;\n"
-  toLeanBody := toLeanBody ++ "  return obj;\n}"
+    toLeanStmts := toLeanStmts.push
+      (.assign (.subscript (.var "sp") (.intLit i))
+               (.binop "!=" (.paren (.binop "&" (.var "v") (.raw mask))) (.intLit 0)))
+  toLeanStmts := toLeanStmts.push (.ret (some (.var "obj")))
+  let toLeanDef : Gen.CTopLevel := .funcDef .plain "lean_object*" toLean
+    #[⟨ta.cName, "v"⟩] toLeanStmts
   -- toC: Lean struct → C unsigned
-  let mut toCBody := s!"{ta.cName} {toC}(b_lean_obj_arg obj) \{\n"
-  toCBody := toCBody ++ s!"  uint8_t *sp = lean_ctor_scalar_cptr(obj);\n"
-  toCBody := toCBody ++ s!"  {ta.cName} v = 0;\n"
+  let mut toCStmts : Array Gen.CStmt := #[
+    .varDecl "uint8_t *" "sp" (some (.call "lean_ctor_scalar_cptr" #[.var "obj"])),
+    .varDecl ta.cName "v" (some (.intLit 0))
+  ]
   for (cConst, _) in bm.fields, i in List.range numFields do
     let mask ← resolveVal cConst
-    toCBody := toCBody ++ s!"  if (sp[{i}]) v |= {mask};\n"
-  toCBody := toCBody ++ "  return v;\n}"
-  .ok (toLeanBody ++ "\n\n" ++ toCBody)
+    toCStmts := toCStmts.push
+      (.ifElse (.subscript (.var "sp") (.intLit i))
+               #[.assignOp "|" (.var "v") (.raw mask)] #[])
+  toCStmts := toCStmts.push (.ret (some (.var "v")))
+  let toCDef : Gen.CTopLevel := .funcDef .plain ta.cName toC
+    #[⟨"b_lean_obj_arg", "obj"⟩] toCStmts
+  .ok #[toLeanDef, toCDef]
 
 /-- Emit the per-opaque-type external-class boilerplate: a static
 class pointer, a lazy getter, the finalizer wrapper, and the foreach
 no-op. -/
-private def emitOpaqueClass (ta : TypeAnno) (finalizer : String) : String :=
+private def emitOpaqueClass (ta : TypeAnno) (finalizer : String) : Array Gen.CTopLevel :=
   let getter := externalClassGetter ta.lean
   let cTypedef := ta.cName
-  let finalizerWrapper :=
-    let snake := ta.lean.foldl (init := "") fun acc c =>
-      if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
-      else acc ++ String.singleton c.toLower
-    s!"finalize_{snake}"
-  let classGlobal :=
-    let snake := ta.lean.foldl (init := "") fun acc c =>
-      if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
-      else acc ++ String.singleton c.toLower
-    s!"g_{snake}_class"
+  let snake := ta.lean.foldl (init := "") fun acc c =>
+    if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
+    else acc ++ String.singleton c.toLower
+  let finalizerWrapper := s!"finalize_{snake}"
+  let classGlobal := s!"g_{snake}_class"
+  let finalizerBody : Gen.CStmt :=
+    if finalizer == "" then .raw "(void)ptr;"
+    else .expr (.call finalizer #[.cast s!"{cTypedef} *" (.var "ptr")])
+  let finalizerFn : Gen.CTopLevel := .funcDef .static_ "void" finalizerWrapper
+    #[⟨"void *", "ptr"⟩] #[finalizerBody]
+  let globalDef : Gen.CTopLevel :=
+    .globalVar "static lean_external_class *" classGlobal (some "NULL")
   -- Class getter is *not* `static` so hand-written helpers in
-  -- separate translation units (e.g. user-supplied test shims) can
-  -- box raw C pointers as the same Lean opaque type.
-  let finalizerBody := if finalizer == "" then "(void)ptr;"
-                       else s!"{finalizer}(({cTypedef} *)ptr);"
-  s!"static void {finalizerWrapper}(void *ptr) \{ {finalizerBody} }\n" ++
-  s!"static lean_external_class *{classGlobal} = NULL;\n" ++
-  s!"lean_external_class *{getter}() \{\n" ++
-  s!"  if ({classGlobal} == NULL) \{\n" ++
-  s!"    {classGlobal} = lean_register_external_class(&{finalizerWrapper}, &noop_foreach);\n" ++
-  s!"  }\n  return {classGlobal};\n}"
+  -- separate translation units can box raw C pointers as the same
+  -- Lean opaque type.
+  let getterFn : Gen.CTopLevel := .funcDef .plain "lean_external_class *" getter
+    #[] #[
+      .ifElse (.binop "==" (.var classGlobal) .null) #[
+        .assign (.var classGlobal) (.call "lean_register_external_class"
+          #[.raw s!"&{finalizerWrapper}", .raw "&noop_foreach"])
+      ] #[],
+      .ret (some (.var classGlobal))
+    ]
+  #[finalizerFn, globalDef, getterFn]
 
 /-- Emit a `free_<type>` function that recursively frees malloc'd
 nested payloads of a C struct. Takes a pointer to the struct to free
@@ -2482,116 +2637,210 @@ fields. -/
 private def emitFreeHelper
     (h : CHeader) (anno : Std.HashMap String TypeAnno)
     (ta : TypeAnno) (sm : StructMapping)
-    : Except String String := do
+    : Except String Gen.CTopLevel := do
   let fields ← resolveStructFields h anno sm
   let freeName := freeHelperName ta.lean
   let cTypedef := ta.cName
-  let mut lines : Array String := #[]
+  let mut stmts : Array Gen.CStmt := #[]
   for (cField, _, r) in fields do
     match r.paramMarshal with
     | .array cElemTy elem =>
-      -- Array field: free each element's deep fields, then free buffer.
       let sizeField := (sm.arrayFields.find? (·.1 = cField)).map (·.2) |>.getD "size"
-      let elemFreeLine := match elem with
+      let elemFreeLoop := match elem with
         | .structHelper toC _ =>
-          let snake := toC.drop 8  -- drop "lean_to_" prefix
-          some s!"free_{snake}"
-        | _ => none
-      lines := lines.push s!"  if (p->{cField}) \{"
-      match elemFreeLine with
-      | some freeFn =>
-        lines := lines.push s!"    for (size_t _i = 0; _i < p->{sizeField}; _i++) \{"
-        lines := lines.push s!"      {freeFn}(({cElemTy} *)&p->{cField}[_i]);"
-        lines := lines.push s!"    }"
-      | none => pure ()
-      lines := lines.push s!"    free((void *)p->{cField});"
-      lines := lines.push s!"  }"
+          let snake := toC.drop 8
+          let freeFn := s!"free_{snake}"
+          #[Gen.CStmt.forLoop "size_t _i = 0" s!"_i < p->{sizeField}" "_i++"
+            #[.expr (.call freeFn #[.cast s!"{cElemTy} *" (.raw s!"&p->{cField}[_i]")])]]
+        | _ => #[]
+      stmts := stmts.push (.ifElse (.arrow (.var "p") cField)
+        (elemFreeLoop ++ #[.expr (.call "free" #[.cast "void *" (.arrow (.var "p") cField)])]) #[])
     | .fromLeanStruct _ cTy true =>
-      -- Pointer-to-struct field: free nested, then free the pointer
       match r.freeHelperFn with
       | some nestedFree =>
-        lines := lines.push s!"  if (p->{cField}) \{"
-        lines := lines.push s!"    {nestedFree}(({cTy} *)p->{cField});"
-        lines := lines.push s!"    free((void *)p->{cField});"
-        lines := lines.push s!"  }"
+        stmts := stmts.push (.ifElse (.arrow (.var "p") cField) #[
+          .expr (.call nestedFree #[.cast s!"{cTy} *" (.arrow (.var "p") cField)]),
+          .expr (.call "free" #[.cast "void *" (.arrow (.var "p") cField)])
+        ] #[])
       | none =>
-        lines := lines.push s!"  if (p->{cField}) free((void *)p->{cField});"
+        stmts := stmts.push (.ifElse (.arrow (.var "p") cField)
+          #[.expr (.call "free" #[.cast "void *" (.arrow (.var "p") cField)])] #[])
     | .fromLeanStruct _ _ false =>
-      -- By-value nested struct: free its deep fields in-place
       match r.freeHelperFn with
       | some nestedFree =>
-        lines := lines.push s!"  {nestedFree}(&p->{cField});"
+        stmts := stmts.push (.expr (.call nestedFree #[.addrOf (.arrow (.var "p") cField)]))
       | none => pure ()
     | _ => pure ()
-  let body := "\n".intercalate lines.toList
-  return s!"static void {freeName}({cTypedef} *p) \{\n{body}\n}"
+  return .funcDef .static_ "void" freeName #[⟨s!"{cTypedef} *", "p"⟩] stmts
 
 /-- Emit a `free_<type>` function for a tagged union. Switches on the
 tag, frees variant-specific payloads, then frees shared fields. -/
 private def emitTaggedUnionFreeHelper
     (h : CHeader) (anno : Std.HashMap String TypeAnno)
     (ta : TypeAnno) (tu : TaggedUnionMapping)
-    : Except String String := do
+    : Except String Gen.CTopLevel := do
   let some headerFields := lookupStructTag h tu.cStructTag
     | .error s!"struct tag `{tu.cStructTag}` not found in header"
   let freeName := freeHelperName ta.lean
   let cTypedef := ta.cName
-  -- Free variant-specific payloads.
-  let mut casesLines : Array String := #[]
+  let mut stmts : Array Gen.CStmt := #[]
+  -- Free variant-specific payloads via switch.
+  let mut switchCases : Array (Gen.CExpr × Array Gen.CStmt) := #[]
   for v in tu.variants do
     let some hf := lookupFieldInStruct h headerFields v.unionField
-      | continue  -- skip unknown fields
+      | continue
     let payloadTy := match hf.type with
       | .pointer (.const t) | .pointer t | .const t => t
       | t => t
     let r ← resolveType anno payloadTy
-    let isPtr := match hf.type with
-      | .pointer _ => true
-      | _          => false
+    let isPtr := match hf.type with | .pointer _ => true | _ => false
     match r.freeHelperFn with
     | some nestedFree =>
-      if isPtr then
-        casesLines := casesLines.push s!"    case {v.cTag}:"
-        casesLines := casesLines.push s!"      if (p->{v.unionField}) \{"
-        casesLines := casesLines.push s!"        {nestedFree}(({r.cLocalType} *)p->{v.unionField});"
-        casesLines := casesLines.push s!"        free((void *)p->{v.unionField});"
-        casesLines := casesLines.push s!"      }"
-        casesLines := casesLines.push s!"      break;"
-      else
-        casesLines := casesLines.push s!"    case {v.cTag}:"
-        casesLines := casesLines.push s!"      {nestedFree}(&p->{v.unionField});"
-        casesLines := casesLines.push s!"      break;"
+      let body := if isPtr then #[
+        .ifElse (.arrow (.var "p") v.unionField) #[
+          .expr (.call nestedFree #[.cast s!"{r.cLocalType} *" (.arrow (.var "p") v.unionField)]),
+          .expr (.call "free" #[.cast "void *" (.arrow (.var "p") v.unionField)])
+        ] #[],
+        .raw "break;"
+      ] else #[
+        .expr (.call nestedFree #[.addrOf (.arrow (.var "p") v.unionField)]),
+        .raw "break;"
+      ]
+      switchCases := switchCases.push (.var v.cTag, body)
     | none => pure ()
+  if !switchCases.isEmpty then
+    stmts := stmts.push (.switch (.arrow (.var "p") tu.tagField) switchCases
+      #[.raw "break;"])
   -- Free shared fields.
-  let mut sharedLines : Array String := #[]
   for (cField, _) in tu.sharedFields do
-    let some hf := lookupFieldInStruct h headerFields cField
-      | continue
+    let some hf := lookupFieldInStruct h headerFields cField | continue
     let r ← resolveType anno hf.type
     match r.paramMarshal with
     | .fromLeanStruct _ cTy true =>
       match r.freeHelperFn with
       | some nestedFree =>
-        sharedLines := sharedLines.push s!"  if (p->{cField}) \{"
-        sharedLines := sharedLines.push s!"    {nestedFree}(({cTy} *)p->{cField});"
-        sharedLines := sharedLines.push s!"    free((void *)p->{cField});"
-        sharedLines := sharedLines.push s!"  }"
+        stmts := stmts.push (.ifElse (.arrow (.var "p") cField) #[
+          .expr (.call nestedFree #[.cast s!"{cTy} *" (.arrow (.var "p") cField)]),
+          .expr (.call "free" #[.cast "void *" (.arrow (.var "p") cField)])
+        ] #[])
       | none =>
-        sharedLines := sharedLines.push s!"  if (p->{cField}) free((void *)p->{cField});"
+        stmts := stmts.push (.ifElse (.arrow (.var "p") cField)
+          #[.expr (.call "free" #[.cast "void *" (.arrow (.var "p") cField)])] #[])
     | .fromLeanStruct _ _ false =>
       match r.freeHelperFn with
       | some nestedFree =>
-        sharedLines := sharedLines.push s!"  {nestedFree}(&p->{cField});"
+        stmts := stmts.push (.expr (.call nestedFree #[.addrOf (.arrow (.var "p") cField)]))
       | none => pure ()
     | _ => pure ()
-  let switchBlock :=
-    if casesLines.isEmpty then ""
-    else
-      s!"  switch (p->{tu.tagField}) \{\n" ++
-      "\n".intercalate casesLines.toList ++ "\n" ++
-      s!"    default: break;\n  }\n"
-  let sharedBlock := "\n".intercalate sharedLines.toList
-  return s!"static void {freeName}({cTypedef} *p) \{\n{switchBlock}{sharedBlock}\n}"
+  return .funcDef .static_ "void" freeName #[⟨s!"{cTypedef} *", "p"⟩] stmts
+
+/-- Emit the trampoline for an event callback typedef. Generates a
+C function with switch-dispatch on the discriminant enum, marshalling
+`void *event` differently per variant. -/
+private def emitEventCallbackTrampoline
+    (h : CHeader) (anno : Std.HashMap String TypeAnno) (ta : TypeAnno) (ec : EventCallbackMapping)
+    : Except String Gen.CTopLevel := do
+  -- Look up the C signature of the callback typedef.
+  let some body := lookupTypedefBody h ta.cName
+    | .error s!"event callback typedef `{ta.cName}` not found in header"
+  let .pointer (.function ret params _variadic) := body
+    | .error s!"event callback typedef `{ta.cName}` is not a function-pointer"
+  let trampolineName := callbackTrampolineName ta.cName
+  -- Build C param signature.
+  let cSig := params.toList.zipIdx.map fun (p, i) =>
+    let nm := p.name.getD s!"_arg{i}"
+    CType.declarator p.type nm
+  let retTy := CType.declarator ret ""
+  -- Param names.
+  let discrimName := (params[ec.discriminantIdx]?.bind (·.name)).getD s!"_arg{ec.discriminantIdx}"
+  let eventName := (params[ec.eventIdx]?.bind (·.name)).getD s!"_arg{ec.eventIdx}"
+  let userData := (params[ec.userDataIdx]?.bind (·.name)).getD s!"_arg{ec.userDataIdx}"
+  let outParamNames := ec.outParams.map fun idx =>
+    (params[idx]?.bind (·.name)).getD s!"_arg{idx}"
+  -- Build per-variant switch cases.
+  let mut switchCases : Array String := #[]
+  for (v, varIdx) in ec.variants.toList.zipIdx do
+    let mut caseLines : Array String := #[]
+    match v.interpretation with
+    | .opaquePtr leanTy nullable =>
+      -- Find the opaque class getter for this Lean type.
+      let getter := externalClassGetter leanTy
+      if nullable then
+        caseLines := caseLines ++ #[
+          s!"      if ({eventName} == NULL) \{",
+          s!"        eventObj = lean_alloc_ctor({varIdx}, 1, 0);",
+          s!"        lean_ctor_set(eventObj, 0, lean_box(0));",
+          s!"      } else \{",
+          s!"        lean_object* inner = lean_alloc_external({getter}(), {eventName});",
+          s!"        lean_object* some = lean_alloc_ctor(1, 1, 0);",
+          s!"        lean_ctor_set(some, 0, inner);",
+          s!"        eventObj = lean_alloc_ctor({varIdx}, 1, 0);",
+          s!"        lean_ctor_set(eventObj, 0, some);",
+          s!"      }"
+        ]
+      else
+        caseLines := caseLines ++ #[
+          s!"      lean_object* val = lean_alloc_external({getter}(), {eventName});",
+          s!"      eventObj = lean_alloc_ctor({varIdx}, 1, 0);",
+          s!"      lean_ctor_set(eventObj, 0, val);"
+        ]
+    | .derefMapped leanTy =>
+      -- Find the toLean helper for this mapped type.
+      let (_, toLeanFn) := structHelperNames leanTy
+      -- Look up the C typedef name from annotation.
+      let cTypedefName := anno.toList.findSome? fun (cN, a) =>
+        if a.lean == leanTy then some cN else none
+      let cTy := cTypedefName.getD leanTy
+      caseLines := caseLines ++ #[
+        s!"      {cTy} *_deref_ptr = ({cTy} *){eventName};",
+        s!"      lean_object* val = {toLeanFn}(*_deref_ptr);",
+        s!"      eventObj = lean_alloc_ctor({varIdx}, 1, 0);",
+        s!"      lean_ctor_set(eventObj, 0, val);"
+      ]
+    | .ptrArray leanTy count =>
+      let getter := externalClassGetter leanTy
+      -- Cast to T**, index each element.
+      let cTypedefName := anno.toList.findSome? fun (cN, a) =>
+        if a.lean == leanTy then some cN else none
+      let cTy := cTypedefName.getD leanTy
+      caseLines := caseLines.push s!"      {cTy} **_ptrs = ({cTy} **){eventName};"
+      for i in List.range count do
+        caseLines := caseLines.push
+          s!"      lean_object* _ev{i} = lean_alloc_external({getter}(), (void *)_ptrs[{i}]);"
+      caseLines := caseLines.push s!"      eventObj = lean_alloc_ctor({varIdx}, {count}, 0);"
+      for i in List.range count do
+        caseLines := caseLines.push s!"      lean_ctor_set(eventObj, {i}, _ev{i});"
+    let caseBody := "\n".intercalate caseLines.toList
+    switchCases := switchCases.push
+      (s!"    case {v.cEnumValue}: \{\n{caseBody}\n      break;\n    }")
+  let switchBody := "\n".intercalate switchCases.toList
+  -- Build the return handling (reads out-params from the Lean closure result).
+  let mut outParamWrites : Array String := #[]
+  for (outName, _idx) in outParamNames.toList.zip ec.outParams.toList do
+    -- For now, assume out-params are bool* (the common case for event callbacks).
+    outParamWrites := outParamWrites.push s!"    *{outName} = lean_unbox(lean_io_result_get_value(_result)) ? 1 : 0;"
+  let outParamBlock := "\n".intercalate outParamWrites.toList
+  let isVoid := match ret with | .void => true | _ => false
+  let returnBlock := if isVoid then
+    s!"  lean_dec(_result);\n"
+  else if ec.outParams.isEmpty then
+    s!"  lean_dec(_result);\n  return 1;\n"
+  else
+    s!"  if (lean_io_result_is_ok(_result)) \{\n{outParamBlock}\n  } else \{\n" ++
+    (outParamNames.toList.map (s!"    *{·} = 0;") |> "\n".intercalate) ++
+    s!"\n  }\n  lean_dec(_result);\n  return 1;\n"
+  let body :=
+    s!"{retTy.trimAscii.toString} {trampolineName}({", ".intercalate cSig}) \{\n" ++
+    s!"  lean_object *closure = (lean_object *){userData};\n" ++
+    s!"  lean_object *eventObj;\n" ++
+    s!"  switch ({discrimName}) \{\n" ++ switchBody ++ "\n" ++
+    s!"    default: eventObj = lean_box(0); break;\n" ++
+    s!"  }\n" ++
+    s!"  lean_inc(closure);\n" ++
+    s!"  lean_object *_result = lean_apply_2(closure, eventObj, lean_io_mk_world());\n" ++
+    returnBlock ++
+    "}"
+  return .raw body
 
 /-- Generate the entire shim source text. -/
 def emitShim (b : Bindings) (h : CHeader) : Except String String := do
@@ -2605,46 +2854,38 @@ def emitShim (b : Bindings) (h : CHeader) : Except String String := do
       | _ => m) ({} : Std.HashMap _ _)
   -- Per-type setup: enum helpers, opaque-class boilerplate, struct
   -- to/from converters, callback trampolines, reverse trampolines.
-  let mut enumHelpersArr    : Array String := #[]
-  let mut opaqueClassArr    : Array String := #[]
-  let mut forwardDeclArr    : Array String := #[]
-  let mut freeHelpersArr    : Array String := #[]
-  let mut structHelpersArr  : Array String := #[]
-  let mut reverseCallbackArr : Array String := #[]
-  let mut callbackArr       : Array String := #[]
+  let mut forwardDecls    : Array Gen.CTopLevel := #[]
+  let mut enumHelpers     : Array Gen.CTopLevel := #[]
+  let mut opaqueHelpers   : Array Gen.CTopLevel := #[]
+  let mut freeHelpers     : Array Gen.CTopLevel := #[]
+  let mut structHelpers   : Array Gen.CTopLevel := #[]
+  let mut reverseCallbacks : Array Gen.CTopLevel := #[]
+  let mut callbacks       : Array Gen.CTopLevel := #[]
   let mut hasNestedCallbacks := false
   for ta in b.types do
     match ta.mapping with
     | .inductiveEnum em =>
-      enumHelpersArr := enumHelpersArr.push (← emitEnumHelpers h ta em)
+      let tops ← emitEnumHelpers h ta em
+      enumHelpers := enumHelpers ++ tops
     | .opaquePointer fin =>
-      opaqueClassArr := opaqueClassArr.push (emitOpaqueClass ta fin)
+      opaqueHelpers := opaqueHelpers ++ emitOpaqueClass ta fin
     | .structRecord sm =>
-      -- Forward declarations for recursive helper calls.
       let (toC, toLean) := structHelperNames ta.lean
       let freeFn := freeHelperName ta.lean
-      forwardDeclArr := forwardDeclArr.push
-        s!"static void {freeFn}({ta.cName} *p);"
-      forwardDeclArr := forwardDeclArr.push
-        s!"lean_object* {toLean}({ta.cName} v);"
-      forwardDeclArr := forwardDeclArr.push
-        s!"{ta.cName} {toC}(b_lean_obj_arg obj);"
-      freeHelpersArr := freeHelpersArr.push
-        (← emitFreeHelper h typeAnnoMap ta sm)
-      structHelpersArr := structHelpersArr.push
-        (← emitStructHelpers h typeAnnoMap ta sm)
+      forwardDecls := forwardDecls ++ #[
+        .forwardDecl s!"static void {freeFn}({ta.cName} *p)",
+        .forwardDecl s!"lean_object* {toLean}({ta.cName} v)",
+        .forwardDecl s!"{ta.cName} {toC}(b_lean_obj_arg obj)"
+      ]
+      freeHelpers := freeHelpers.push (← emitFreeHelper h typeAnnoMap ta sm)
+      structHelpers := structHelpers ++ (← emitStructHelpers h typeAnnoMap ta sm)
     | .callback =>
-      -- Forward trampoline (C→Lean).
-      callbackArr := callbackArr.push (← emitCallbackTrampoline h typeAnnoMap ta)
-      -- Reverse trampoline (Lean→C) if this callback is used as a
-      -- nested callback inside another callback.
+      let cbTop ← emitCallbackTrampoline h typeAnnoMap ta
+      callbacks := callbacks.push cbTop
       if isNestedCallback h typeAnnoMap ta then
         hasNestedCallbacks := true
-        let reverseTramp ← emitReverseTrampoline h typeAnnoMap ta
-        reverseCallbackArr := reverseCallbackArr.push reverseTramp
-        -- Forward-declare the reverse trampoline.
+        reverseCallbacks := reverseCallbacks.push (← emitReverseTrampoline h typeAnnoMap ta)
         let reverseName := reverseCallbackTrampolineName ta.cName
-        -- Build the forward declaration signature.
         let (_, innerParams, _) ← callbackSignature h ta.cName
         let innerLayout ← analyzeCallbackLayout innerParams typeAnnoMap
         let mut sigParts : Array String := #[
@@ -2654,70 +2895,61 @@ def emitShim (b : Bindings) (h : CHeader) : Except String String := do
           if !innerLayout.hiddenIndices.contains i then
             sigParts := sigParts.push "lean_object *"
         sigParts := sigParts.push "lean_object *"
-        forwardDeclArr := forwardDeclArr.push
-          s!"LEAN_EXPORT lean_obj_res {reverseName}({", ".intercalate sigParts.toList});"
+        forwardDecls := forwardDecls.push
+          (.forwardDecl s!"LEAN_EXPORT lean_obj_res {reverseName}({", ".intercalate sigParts.toList})")
     | .taggedUnion tu =>
       let (toC, toLean) := structHelperNames ta.lean
       let freeFn := freeHelperName ta.lean
-      forwardDeclArr := forwardDeclArr.push
-        s!"static void {freeFn}({ta.cName} *p);"
-      forwardDeclArr := forwardDeclArr.push
-        s!"lean_object* {toLean}({ta.cName} v);"
-      forwardDeclArr := forwardDeclArr.push
-        s!"{ta.cName} {toC}(b_lean_obj_arg obj);"
-      freeHelpersArr := freeHelpersArr.push
-        (← emitTaggedUnionFreeHelper h typeAnnoMap ta tu)
-      structHelpersArr := structHelpersArr.push
-        (← emitTaggedUnionHelpers h typeAnnoMap ta tu)
+      forwardDecls := forwardDecls ++ #[
+        .forwardDecl s!"static void {freeFn}({ta.cName} *p)",
+        .forwardDecl s!"lean_object* {toLean}({ta.cName} v)",
+        .forwardDecl s!"{ta.cName} {toC}(b_lean_obj_arg obj)"
+      ]
+      freeHelpers := freeHelpers.push (← emitTaggedUnionFreeHelper h typeAnnoMap ta tu)
+      structHelpers := structHelpers.push (.raw (← emitTaggedUnionHelpers h typeAnnoMap ta tu))
     | .bitfieldStruct bm =>
       let (toC, toLean) := structHelperNames ta.lean
-      forwardDeclArr := forwardDeclArr.push
-        s!"lean_object* {toLean}({ta.cName} v);"
-      forwardDeclArr := forwardDeclArr.push
-        s!"{ta.cName} {toC}(b_lean_obj_arg obj);"
-      structHelpersArr := structHelpersArr.push
-        (← emitBitfieldHelpers h ta bm)
+      forwardDecls := forwardDecls ++ #[
+        .forwardDecl s!"lean_object* {toLean}({ta.cName} v)",
+        .forwardDecl s!"{ta.cName} {toC}(b_lean_obj_arg obj)"
+      ]
+      structHelpers := structHelpers ++ (← emitBitfieldHelpers h ta bm)
+    | .eventCallback ec =>
+      let cbTop ← emitEventCallbackTrampoline h typeAnnoMap ta ec
+      callbacks := callbacks.push cbTop
     | _ => pure ()
-  let hasCallbacks := !callbackArr.isEmpty
-  let needsForeach := !opaqueClassArr.isEmpty || hasCallbacks
-  let foreachDef :=
-    if needsForeach then
-      "static void noop_foreach(void *mod, b_lean_obj_arg fn) { (void)mod; (void)fn; }\n\n"
-    else ""
-  -- Callback wrapper external class (shared, no-op finalizer) for wrapping
-  -- inner callback fn-ptrs and user-data as Lean external objects.
-  let callbackWrapperClassDef :=
-    if hasNestedCallbacks then
-      "static void noop_finalize(void *p) { (void)p; }\n" ++
-      "static lean_external_class *g_callback_wrapper_class = NULL;\n" ++
-      "lean_external_class *get_callback_wrapper_class() {\n" ++
-      "  if (g_callback_wrapper_class == NULL) {\n" ++
-      "    g_callback_wrapper_class = lean_register_external_class(&noop_finalize, &noop_foreach);\n" ++
-      "  }\n  return g_callback_wrapper_class;\n}\n\n"
-    else ""
-  let forwardBlock :=
-    if forwardDeclArr.isEmpty then ""
-    else "// Forward declarations for recursive helpers.\n" ++
-         "\n".intercalate forwardDeclArr.toList ++ "\n\n"
-  let helperBlock :=
-    let parts := (enumHelpersArr ++ opaqueClassArr ++ freeHelpersArr ++ structHelpersArr
-                  ++ reverseCallbackArr ++ callbackArr).toList
-    if parts.isEmpty then "" else forwardBlock ++ "\n\n".intercalate parts ++ "\n\n"
+  let hasCallbacks := !callbacks.isEmpty
+  let needsForeach := !opaqueHelpers.isEmpty || hasCallbacks
   let hasTaggedUnion := b.types.any (fun ta => match ta.mapping with | .taggedUnion _ => true | _ => false)
   let hasStructOrTU := b.types.any (fun ta => match ta.mapping with
     | .structRecord _ | .taggedUnion _ => true | _ => false)
   let needsStdlib := hasStructOrTU || hasNestedCallbacks
-  let header :=
-    s!"// Auto-generated by lean-bindgen. Do not edit.\n" ++
-    s!"#include \"lean/lean.h\"\n" ++
-    (if needsStdlib then "#include <stdlib.h>\n" else "") ++
-    (if hasTaggedUnion then "#include <string.h>\n" else "") ++
-    s!"#include \"{b.headerPath.splitOn "/" |>.getLast!}\"\n\n"
-  let mut block := #[]
+  -- Assemble the CShimFile in order.
+  let mut file : Gen.CShimFile := #[]
+  file := file.push (.comment "Auto-generated by lean-bindgen. Do not edit.")
+  file := file.push (.include "lean/lean.h" false)
+  if needsStdlib then file := file.push (.include "stdlib.h")
+  if hasTaggedUnion then file := file.push (.include "string.h")
+  file := file.push (.include (b.headerPath.splitOn "/" |>.getLast!) false)
+  if needsForeach then
+    file := file.push (.raw "static void noop_foreach(void *mod, b_lean_obj_arg fn) { (void)mod; (void)fn; }")
+  if hasNestedCallbacks then
+    file := file ++ #[
+      .raw "static void noop_finalize(void *p) { (void)p; }",
+      .raw "static lean_external_class *g_callback_wrapper_class = NULL;",
+      .raw ("lean_external_class *get_callback_wrapper_class() {\n" ++
+            "  if (g_callback_wrapper_class == NULL) {\n" ++
+            "    g_callback_wrapper_class = lean_register_external_class(&noop_finalize, &noop_foreach);\n" ++
+            "  }\n  return g_callback_wrapper_class;\n}")
+    ]
+  if !forwardDecls.isEmpty then
+    file := file.push (.comment "Forward declarations for recursive helpers.")
+    file := file ++ forwardDecls
+  file := file ++ enumHelpers ++ opaqueHelpers ++ freeHelpers ++ structHelpers
+               ++ reverseCallbacks ++ callbacks
   for fa in b.functions do
-    block := block.push (← emitShimFunction b typeAnnoMap declMap fa)
-  return header ++ foreachDef ++ callbackWrapperClassDef ++ helperBlock ++
-         "\n\n".intercalate block.toList ++ "\n"
+    file := file.push (← emitShimFunction b typeAnnoMap declMap fa)
+  return Gen.CShimFile.render file ++ "\n"
 
 end Codegen
 end LeanBindgen

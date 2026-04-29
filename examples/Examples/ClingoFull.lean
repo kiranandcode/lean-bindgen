@@ -332,6 +332,15 @@ def clingoFullBindings : Bindings := {
         ]
       } },
 
+    { cName := "clingo_solve_mode_bitset_t", lean := "SolveMode",
+      mapping := .bitfieldStruct {
+        enumTag := "clingo_solve_mode"
+        fields := #[
+          ("clingo_solve_mode_async", "async"),
+          ("clingo_solve_mode_yield", "yield")
+        ]
+      } },
+
     -- ── Callback typedefs ────────────────────────────────────
     { cName := "clingo_logger_t", lean := "Logger",
       mapping := .callback },
@@ -339,8 +348,27 @@ def clingoFullBindings : Bindings := {
       mapping := .callback },
     { cName := "clingo_ground_callback_t", lean := "GroundCallback",
       mapping := .callback },
-    -- clingo_solve_event_callback_t: custom handling needed (void *event
-    -- carries different typed data per event type, bool *goon out-param)
+    { cName := "clingo_solve_event_callback_t", lean := "SolveEventCallback",
+      mapping := .eventCallback {
+        eventTypeName := "SolveEvent"
+        discriminantIdx := 0  -- clingo_solve_event_type_t type
+        eventIdx := 1         -- void *event
+        userDataIdx := 2      -- void *data
+        outParams := #[3]     -- bool *goon
+        leanReturnType := "Bool"
+        variants := #[
+          { cEnumValue := "clingo_solve_event_type_model"
+            leanCtor := "model"
+            interpretation := .opaquePtr "Model" true },
+          { cEnumValue := "clingo_solve_event_type_statistics"
+            leanCtor := "statistics"
+            interpretation := .ptrArray "Statistics" 2
+            fieldNames := #["perStep", "accum"] },
+          { cEnumValue := "clingo_solve_event_type_finish"
+            leanCtor := "finish"
+            interpretation := .derefMapped "SolveResult" }
+        ]
+      } },
     { cName := "clingo_ast_callback_t", lean := "AstCallback",
       mapping := .callback },
 
@@ -970,6 +998,12 @@ def clingoFullBindings : Bindings := {
       } }
   ]
   functions := #[
+    -- ── Version ──────────────────────────────────────────────
+    { cName := "clingo_version"
+      lean  := "version"
+      style := .multiOutParam #[0, 1, 2]
+      inIO := false },
+
     -- ── Error / utility ──────────────────────────────────────
     { cName := "clingo_error_code",    lean := "errorCode",    inIO := true },
     { cName := "clingo_error_string",  lean := "errorString" },
@@ -1094,8 +1128,12 @@ def clingoFullBindings : Bindings := {
     --   clingo_solve_mode_bitset_t mode, clingo_literal_t const *assumptions,
     --   size_t assumptions_size, clingo_solve_event_callback_t notify,
     --   void *data, clingo_solve_handle_t **handle)
-    -- NOTE: clingo_solve_event_callback_t is not mapped (custom event dispatch),
-    -- so this function cannot be auto-generated yet. Skipped.
+    { cName := "clingo_control_solve"
+      lean  := "controlSolve"
+      style := .outParamBoolStatus 6 (.tuple "clingo_error_code" "Error" "clingo_error_message")
+      inIO := true
+      arrayPairs := [(2, 3)]
+      callbackUserDataParams := [5] },
 
     -- bool clingo_control_statistics(clingo_control_t const *control,
     --   clingo_statistics_t const **statistics)

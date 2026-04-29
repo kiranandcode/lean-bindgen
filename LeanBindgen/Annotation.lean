@@ -188,6 +188,55 @@ structure BitfieldMapping where
   fields : Array (String × String)
   deriving Inhabited
 
+/-- How a variant's `void *event` pointer should be interpreted in the
+event callback trampoline. -/
+inductive EventInterpretation
+  /-- Cast `void *` to `T *` and wrap as a Lean external object.
+  When `nullable`, wraps in `Option`. -/
+  | opaquePtr (typeAnnoLean : String) (nullable : Bool := false)
+  /-- Cast `void *` to `T *`, dereference, and convert via the
+  type's existing `<type>_to_lean` helper. -/
+  | derefMapped (typeAnnoLean : String)
+  /-- Cast `void *` to `T **`, index `[0]..[count-1]`, wrap each
+  as a Lean external object. The resulting ctor has `count` fields. -/
+  | ptrArray (typeAnnoLean : String) (count : Nat)
+  deriving Inhabited
+
+/-- One variant of an event callback: associates a C enum value with a
+Lean constructor and describes how to interpret the `void *event`. -/
+structure EventVariant where
+  /-- The C enum constant (e.g. `clingo_solve_event_type_model`). -/
+  cEnumValue : String
+  /-- The Lean constructor name (e.g. `model`). -/
+  leanCtor : String
+  /-- How to interpret the `void *event` for this variant. -/
+  interpretation : EventInterpretation
+  /-- Field names for multi-field variants (e.g. ptrArray). -/
+  fieldNames : Array String := #[]
+  deriving Inhabited
+
+/-- Describes a polymorphic event callback like
+`clingo_solve_event_callback_t` where a single `void *event` carries
+different typed data depending on an enum discriminant. The codegen
+emits a Lean `inductive` for the event type and a trampoline with
+switch-dispatch. -/
+structure EventCallbackMapping where
+  /-- Lean inductive name for the event type (e.g. `SolveEvent`). -/
+  eventTypeName : String
+  /-- 0-based param index of the discriminant enum in the C callback. -/
+  discriminantIdx : Nat
+  /-- 0-based param index of the `void *event` in the C callback. -/
+  eventIdx : Nat
+  /-- 0-based param index of `void *` user-data. -/
+  userDataIdx : Nat
+  /-- 0-based indices of out-params (e.g. `bool *goon`). -/
+  outParams : Array Nat
+  /-- Lean return type of the callback (e.g. `"Bool"`). -/
+  leanReturnType : String
+  /-- Per-variant descriptions. -/
+  variants : Array EventVariant
+  deriving Inhabited
+
 /-- How a C type is presented in Lean. -/
 inductive TypeMapping
   /-- Wrap an integer C typedef as a fresh Lean `def`. -/
@@ -224,6 +273,10 @@ inductive TypeMapping
   /-- A C unsigned/int typedef whose bits are interpreted as flags,
   unpacked into a Lean `structure` of `Bool` fields. -/
   | bitfieldStruct (mapping : BitfieldMapping)
+  /-- A polymorphic event callback where `void *event` carries
+  different typed data per event type. Emits a Lean inductive for
+  the event and a trampoline with switch-dispatch. -/
+  | eventCallback (ec : EventCallbackMapping)
   deriving Inhabited
 
 structure TypeAnno where
@@ -284,6 +337,11 @@ inductive FunctionStyle
   of the buffer pointer and size parameters in the main function;
   all other parameters are "shared" (passed to both calls). -/
   | callerAllocates (sizeFn : String) (bufIdx : Nat) (sizeIdx : Nat) (error : ErrorReturn)
+  /-- Void-return function where multiple params are out-pointers. The
+  Lean return type is a right-nested `Prod` of the pointee types:
+  `(T₁ × T₂ × ... × Tₙ)`. All out-param indices are dropped from the
+  visible Lean signature. -/
+  | multiOutParam (outParamIndices : Array Nat)
   deriving Inhabited
 
 structure FunctionAnno where

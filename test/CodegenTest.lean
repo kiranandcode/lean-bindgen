@@ -276,7 +276,7 @@ def main : IO Unit := do
     -- Free helper: per-element free + free buffer
     ("free_term", "free_term called (recursive free)"),
     -- Forward declarations present
-    ("// Forward declarations", "forward declarations emitted"),
+    ("Forward declarations", "forward declarations emitted"),
     -- Recursive: unary_op helper calls lean_to_term / term_to_lean
     ("lean_to_term(", "lean_to_term called (recursive toC)"),
     ("term_to_lean(", "term_to_lean called (recursive toLean)"),
@@ -334,3 +334,28 @@ def main : IO Unit := do
   else
     IO.eprintln s!"✗ full cleango shim compile failed (exit {fullOut.exitCode}):"
     IO.eprintln fullOut.stderr
+  -- Pattern checks for new features.
+  let mut fullOk := true
+  let fullChecks := #[
+    -- multiOutParam: clingo_version should have &major etc.
+    ("clingo_version(&", "multiOutParam: clingo_version calls with &out-params"),
+    ("lean_alloc_ctor(0, 2, 0)", "multiOutParam: Prod.mk ctor in version shim"),
+    -- eventCallback: trampoline with switch dispatch
+    ("clingo_solve_event_callback_t_trampoline", "eventCallback: trampoline emitted"),
+    ("switch (type)", "eventCallback: switch dispatch on event type"),
+    -- eventCallback: event type inductive in Lean
+    ("inductive SolveEvent", "eventCallback: SolveEvent inductive in Lean"),
+    -- controlSolve function present
+    ("lean_clingo_control_solve", "controlSolve: shim function emitted")
+  ]
+  for (pattern, desc) in fullChecks do
+    if (fullShim.splitOn pattern).length > 1 ||
+       (fullLean.splitOn pattern).length > 1 then
+      IO.println s!"  ✓ {desc}"
+    else
+      IO.eprintln s!"  ✗ {desc} — pattern not found"
+      fullOk := false
+  if fullOk then
+    IO.println "✓ all full cleango pattern checks passed"
+  else
+    IO.eprintln "✗ some full cleango pattern checks failed"
