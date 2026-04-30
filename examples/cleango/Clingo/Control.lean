@@ -37,7 +37,7 @@ def interrupt (ctrl : @& Control) : IO Unit :=
   controlInterrupt ctrl
 
 private def programBuilder (ctrl : @& Control) : IO (Except (Error × String) ProgramBuilder) :=
-  controlProgramBuilder ctrl
+  programBuilderInit ctrl
 
 def withProgramBuilder (ctrl : @& Control) (f : ProgramBuilder → IO A) : IO A := do
   let .ok pb ← ctrl.programBuilder | throw (IO.userError "failed to get program builder")
@@ -46,24 +46,21 @@ def withProgramBuilder (ctrl : @& Control) (f : ProgramBuilder → IO A) : IO A 
   let .ok () ← programBuilderEnd pb | throw (IO.userError "failed to end program builder")
   return res
 
+def addAstNode (pb : @& ProgramBuilder) (ast : @& AstNode) : IO (Except String Unit) :=
+  programBuilderAdd pb ast
+
+def addAstStatement (pb : @& ProgramBuilder) (stmt : Ast.Statement) : IO Unit := do
+  let ast ← AstConvert.convertStatement stmt
+  let .ok () ← addAstNode pb ast | throw (IO.userError "failed to add AST statement")
+
+def addAstStatements (pb : @& ProgramBuilder) (stmts : List Ast.Statement) : IO Unit :=
+  for stmt in stmts do
+    let ast ← AstConvert.convertStatement stmt
+    let .ok () ← addAstNode pb ast | throw (IO.userError "failed to add AST statement")
+
 instance : Repr Control where
   reprPrec _ _ := s!"(Clingo.Control.mk)"
 
 end Control
-
-namespace ProgramBuilder
-
-def addStatementRaw (pb : @& ProgramBuilder) (stmt : @& ClingoBindings.AstStatement) : IO (Except String Unit) :=
-  programBuilderAdd pb stmt
-
-def addStatement (pb : @& ProgramBuilder) (stmt : @& Ast.Statement) : IO Unit := do
-  let converted ← AstConvert.convertStatement stmt
-  let _ ← pb.addStatementRaw converted
-
-def addStatements (pb : @& ProgramBuilder) (stmts : List Ast.Statement) : IO Unit :=
-  for stmt in stmts do
-    pb.addStatement stmt
-
-end ProgramBuilder
 
 end Clingo

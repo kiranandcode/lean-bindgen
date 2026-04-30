@@ -27,6 +27,21 @@ partial def Symbol.Repr.reprImpl : Symbol.Repr → Nat → Std.Format
 
 instance : Repr Symbol.Repr where reprPrec := Symbol.Repr.reprImpl
 
+partial def Symbol.Repr.toStringImpl : Symbol.Repr → _root_.String
+  | .Infimum => "#inf"
+  | .Number n => _root_.ToString.toString n
+  | .String s => "\"" ++ s ++ "\""
+  | .Function name args positive =>
+    let neg := if positive then "" else "-"
+    if args.isEmpty then
+      neg ++ name
+    else
+      let argStrs := args.toList.map Symbol.Repr.toStringImpl
+      neg ++ name ++ "(" ++ ",".intercalate argStrs ++ ")"
+  | .Supremum => "#sup"
+
+instance : ToString Symbol.Repr where toString := Symbol.Repr.toStringImpl
+
 namespace Symbol
 
 -- Direct symbol creation (wrapping generated functions).

@@ -71,6 +71,7 @@ inductive StatisticsType where
 
 inductive SolveEventType where
   | model
+  | unsat
   | statistics
   | finish
   deriving Repr, Inhabited, BEq
@@ -88,17 +89,6 @@ inductive ComparisonOperator where
   | geq
   | neq
   | eq
-  deriving Repr, Inhabited, BEq
-
-inductive AstTermType where
-  | symbol
-  | variable
-  | unaryOperation
-  | binaryOperation
-  | interval
-  | function
-  | externalFunction
-  | pool
   deriving Repr, Inhabited, BEq
 
 inductive UnaryOperator where
@@ -119,13 +109,6 @@ inductive BinaryOperator where
   | power
   deriving Repr, Inhabited, BEq
 
-inductive AstLiteralType where
-  | boolean
-  | symbolic
-  | comparison
-  | csp
-  deriving Repr, Inhabited, BEq
-
 inductive AggregateFunction where
   | count
   | sum
@@ -134,53 +117,10 @@ inductive AggregateFunction where
   | max
   deriving Repr, Inhabited, BEq
 
-inductive TheoryTermType where
-  | symbol
-  | variable
+inductive TheorySequenceType where
   | tuple
-  | list
   | set
-  | function
-  | unparsedTerm
-  deriving Repr, Inhabited, BEq
-
-inductive HeadLiteralType where
-  | literal
-  | disjunction
-  | aggregate
-  | headAggregate
-  | theoryAtom
-  deriving Repr, Inhabited, BEq
-
-inductive BodyLiteralType where
-  | literal
-  | conditional
-  | aggregate
-  | bodyAggregate
-  | theoryAtom
-  | disjoint
-  deriving Repr, Inhabited, BEq
-
-inductive StatementType where
-  | rule
-  | const
-  | showSignature
-  | showTerm
-  | minimize
-  | script
-  | program
-  | external
-  | edge
-  | heuristic
-  | projectAtom
-  | projectAtomSignature
-  | theoryDefinition
-  | defined
-  deriving Repr, Inhabited, BEq
-
-inductive ScriptType where
-  | lua
-  | python
+  | list
   deriving Repr, Inhabited, BEq
 
 inductive TheoryOperatorType where
@@ -230,10 +170,10 @@ structure SolveResult where
   deriving Repr, Inhabited
 
 structure ShowType where
-  csp : Bool
   shown : Bool
   atoms : Bool
   terms : Bool
+  theory : Bool
   all : Bool
   complement : Bool
   deriving Repr, Inhabited
@@ -266,354 +206,9 @@ inductive SolveEvent where
 
 def SolveEventCallback := SolveEvent → IO Bool
 
-structure AstDefined where
-  signature : Signature
-  deriving Repr, Inhabited
+opaque AstNode : Type
 
-structure TheoryGuardDefinition where
-  term : String
-  deriving Repr, Inhabited
-
-structure TheoryAtomDefinition where
-  location : Location
-  «type» : TheoryAtomDefinitionType
-  name : String
-  arity : UInt32
-  elements : String
-  guard : TheoryGuardDefinition
-  deriving Repr, Inhabited
-
-structure TheoryOperatorDefinition where
-  location : Location
-  name : String
-  priority : UInt32
-  «type» : TheoryOperatorType
-  deriving Repr, Inhabited
-
-structure TheoryTermDefinition where
-  location : Location
-  name : String
-  operators : Array TheoryOperatorDefinition
-  deriving Repr, Inhabited
-
-structure TheoryDefinition where
-  name : String
-  terms : Array TheoryTermDefinition
-  atoms : Array TheoryAtomDefinition
-  deriving Repr, Inhabited
-
-mutual
-
-inductive AstTerm.Data where
-  | symbol (val : Symbol)
-  | variable (val : String)
-  | unaryOperation (val : AstUnaryOperation)
-  | binaryOperation (val : AstBinaryOperation)
-  | interval (val : AstInterval)
-  | function (val : AstFunction)
-  | externalFunction (val : AstFunction)
-  | pool (val : AstPool)
-  deriving Repr, Inhabited
-
-structure AstTerm where
-  location : Location
-  data : AstTerm.Data
-  deriving Repr, Inhabited
-
-structure AstPool where
-  arguments : Array AstTerm
-  deriving Repr, Inhabited
-
-structure AstFunction where
-  name : String
-  arguments : Array AstTerm
-  deriving Repr, Inhabited
-
-structure AstInterval where
-  left : AstTerm
-  right : AstTerm
-  deriving Repr, Inhabited
-
-structure AstBinaryOperation where
-  binaryOperator : BinaryOperator
-  left : AstTerm
-  right : AstTerm
-  deriving Repr, Inhabited
-
-structure AstUnaryOperation where
-  unaryOperator : UnaryOperator
-  argument : AstTerm
-  deriving Repr, Inhabited
-
-end
-
-structure CspProductTerm where
-  location : Location
-  coefficient : AstTerm
-  «variable» : AstTerm
-  deriving Repr, Inhabited
-
-structure CspSumTerm where
-  location : Location
-  terms : Array CspProductTerm
-  deriving Repr, Inhabited
-
-structure CspGuard where
-  comparison : ComparisonOperator
-  term : CspSumTerm
-  deriving Repr, Inhabited
-
-structure CspLiteral where
-  term : CspSumTerm
-  guards : Array CspGuard
-  deriving Repr, Inhabited
-
-structure AstComparison where
-  comparison : ComparisonOperator
-  left : AstTerm
-  right : AstTerm
-  deriving Repr, Inhabited
-
-inductive AstLiteral.Data where
-  | boolean (val : Bool)
-  | symbolic (val : AstTerm)
-  | comparison (val : AstComparison)
-  | csp (val : CspLiteral)
-  deriving Repr, Inhabited
-
-structure AstLiteral where
-  location : Location
-  sign : Sign
-  data : AstLiteral.Data
-  deriving Repr, Inhabited
-
-structure DisjointElement where
-  location : Location
-  tuple : Array AstTerm
-  term : CspSumTerm
-  condition : Array AstLiteral
-  deriving Repr, Inhabited
-
-structure AstDisjoint where
-  elements : Array DisjointElement
-  deriving Repr, Inhabited
-
-mutual
-
-inductive AstTheoryTerm.Data where
-  | symbol (val : Symbol)
-  | variable (val : String)
-  | tuple (val : TheoryTermArray)
-  | list (val : TheoryTermArray)
-  | set (val : TheoryTermArray)
-  | function (val : TheoryFunction)
-  | unparsedTerm (val : TheoryUnparsedTerm)
-  deriving Repr, Inhabited
-
-structure AstTheoryTerm where
-  location : Location
-  data : AstTheoryTerm.Data
-  deriving Repr, Inhabited
-
-structure TheoryUnparsedTermElement where
-  term : AstTheoryTerm
-  deriving Repr, Inhabited
-
-structure TheoryUnparsedTerm where
-  elements : Array TheoryUnparsedTermElement
-  deriving Repr, Inhabited
-
-structure TheoryFunction where
-  name : String
-  arguments : Array AstTheoryTerm
-  deriving Repr, Inhabited
-
-structure TheoryTermArray where
-  terms : Array AstTheoryTerm
-  deriving Repr, Inhabited
-
-end
-
-structure TheoryGuard where
-  operatorName : String
-  term : AstTheoryTerm
-  deriving Repr, Inhabited
-
-structure TheoryAtomElement where
-  tuple : Array AstTheoryTerm
-  condition : Array AstLiteral
-  deriving Repr, Inhabited
-
-structure TheoryAtom where
-  term : AstTerm
-  elements : Array TheoryAtomElement
-  guard : TheoryGuard
-  deriving Repr, Inhabited
-
-structure AggregateGuard where
-  comparison : ComparisonOperator
-  term : AstTerm
-  deriving Repr, Inhabited
-
-structure BodyAggregateElement where
-  tuple : Array AstTerm
-  condition : Array AstLiteral
-  deriving Repr, Inhabited
-
-structure BodyAggregate where
-  function : AggregateFunction
-  elements : Array BodyAggregateElement
-  leftGuard : AggregateGuard
-  rightGuard : AggregateGuard
-  deriving Repr, Inhabited
-
-structure ConditionalLiteral where
-  literal : AstLiteral
-  condition : Array AstLiteral
-  deriving Repr, Inhabited
-
-structure AstAggregate where
-  elements : Array ConditionalLiteral
-  leftGuard : AggregateGuard
-  rightGuard : AggregateGuard
-  deriving Repr, Inhabited
-
-inductive BodyLiteral.Data where
-  | literal (val : AstLiteral)
-  | conditional (val : ConditionalLiteral)
-  | aggregate (val : AstAggregate)
-  | bodyAggregate (val : BodyAggregate)
-  | theoryAtom (val : TheoryAtom)
-  | disjoint (val : AstDisjoint)
-  deriving Repr, Inhabited
-
-structure BodyLiteral where
-  location : Location
-  sign : Sign
-  data : BodyLiteral.Data
-  deriving Repr, Inhabited
-
-structure AstProject where
-  atom : AstTerm
-  body : Array BodyLiteral
-  deriving Repr, Inhabited
-
-structure AstHeuristic where
-  atom : AstTerm
-  body : Array BodyLiteral
-  bias : AstTerm
-  priority : AstTerm
-  modifier : AstTerm
-  deriving Repr, Inhabited
-
-structure AstEdge where
-  u : AstTerm
-  v : AstTerm
-  body : Array BodyLiteral
-  deriving Repr, Inhabited
-
-structure AstExternal where
-  atom : AstTerm
-  body : Array BodyLiteral
-  «type» : AstTerm
-  deriving Repr, Inhabited
-
-structure AstId where
-  location : Location
-  id : String
-  deriving Repr, Inhabited
-
-structure AstProgram where
-  name : String
-  parameters : Array AstId
-  deriving Repr, Inhabited
-
-structure AstScript where
-  «type» : ScriptType
-  code : String
-  deriving Repr, Inhabited
-
-structure AstMinimize where
-  weight : AstTerm
-  priority : AstTerm
-  tuple : Array AstTerm
-  body : Array BodyLiteral
-  deriving Repr, Inhabited
-
-structure AstShowTerm where
-  term : AstTerm
-  body : Array BodyLiteral
-  csp : Bool
-  deriving Repr, Inhabited
-
-structure AstShowSignature where
-  signature : Signature
-  csp : Bool
-  deriving Repr, Inhabited
-
-structure AstDefinition where
-  name : String
-  value : AstTerm
-  isDefault : Bool
-  deriving Repr, Inhabited
-
-structure HeadAggregateElement where
-  tuple : Array AstTerm
-  conditionalLiteral : ConditionalLiteral
-  deriving Repr, Inhabited
-
-structure HeadAggregate where
-  function : AggregateFunction
-  elements : Array HeadAggregateElement
-  leftGuard : AggregateGuard
-  rightGuard : AggregateGuard
-  deriving Repr, Inhabited
-
-structure Disjunction where
-  elements : Array ConditionalLiteral
-  deriving Repr, Inhabited
-
-inductive HeadLiteral.Data where
-  | literal (val : AstLiteral)
-  | disjunction (val : Disjunction)
-  | aggregate (val : AstAggregate)
-  | headAggregate (val : HeadAggregate)
-  | theoryAtom (val : TheoryAtom)
-  deriving Repr, Inhabited
-
-structure HeadLiteral where
-  location : Location
-  data : HeadLiteral.Data
-  deriving Repr, Inhabited
-
-structure AstRule where
-  head : HeadLiteral
-  body : Array BodyLiteral
-  deriving Repr, Inhabited
-
-inductive AstStatement.Data where
-  | rule (val : AstRule)
-  | const (val : AstDefinition)
-  | showSignature (val : AstShowSignature)
-  | showTerm (val : AstShowTerm)
-  | minimize (val : AstMinimize)
-  | script (val : AstScript)
-  | program (val : AstProgram)
-  | external (val : AstExternal)
-  | edge (val : AstEdge)
-  | heuristic (val : AstHeuristic)
-  | projectAtom (val : AstProject)
-  | projectAtomSignature (val : Signature)
-  | theoryDefinition (val : TheoryDefinition)
-  | defined (val : AstDefined)
-  deriving Repr, Inhabited
-
-structure AstStatement where
-  location : Location
-  data : AstStatement.Data
-  deriving Repr, Inhabited
-
-def AstCallback := AstStatement → IO Bool
+def AstCallback := AstNode → IO Bool
 
 structure WeightedLiteral where
   literal : Literal
@@ -624,6 +219,252 @@ structure Part where
   name : String
   params : Array Symbol
   deriving Repr, Inhabited
+
+inductive AstType where
+  | id
+  | variable
+  | symbolicTerm
+  | unaryOperation
+  | binaryOperation
+  | interval
+  | function
+  | pool
+  | booleanConstant
+  | symbolicAtom
+  | comparison
+  | guard
+  | conditionalLiteral
+  | aggregate
+  | bodyAggregateElement
+  | bodyAggregate
+  | headAggregateElement
+  | headAggregate
+  | disjunction
+  | theorySequence
+  | theoryFunction
+  | theoryUnparsedTermElement
+  | theoryUnparsedTerm
+  | theoryGuard
+  | theoryAtomElement
+  | theoryAtom
+  | literal
+  | theoryOperatorDefinition
+  | theoryTermDefinition
+  | theoryGuardDefinition
+  | theoryAtomDefinition
+  | rule
+  | definition
+  | showSignature
+  | showTerm
+  | minimize
+  | script
+  | program
+  | external
+  | edge
+  | heuristic
+  | projectAtom
+  | projectSignature
+  | defined
+  | theoryDefinition
+  | comment
+  deriving Repr, Inhabited, BEq
+
+inductive AstAttributeType where
+  | number
+  | symbol
+  | location
+  | string
+  | ast
+  | optionalAst
+  | stringArray
+  | astArray
+  deriving Repr, Inhabited, BEq
+
+inductive AstAttribute where
+  | argument
+  | arguments
+  | arity
+  | atom
+  | atoms
+  | atomType
+  | bias
+  | body
+  | code
+  | coefficient
+  | comparison
+  | condition
+  | elements
+  | external
+  | externalType
+  | function
+  | guard
+  | guards
+  | head
+  | isDefault
+  | left
+  | leftGuard
+  | literal
+  | location
+  | modifier
+  | name
+  | nodeU
+  | nodeV
+  | operatorName
+  | operatorType
+  | operators
+  | parameters
+  | positive
+  | priority
+  | right
+  | rightGuard
+  | sequenceType
+  | sign
+  | symbol
+  | term
+  | terms
+  | value
+  | variable
+  | weight
+  | commentType
+  deriving Repr, Inhabited, BEq
+
+@[extern "lean_build_id"]
+opaque buildId : @& Location → @& String → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_variable"]
+opaque buildVariable : @& Location → @& String → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_symbolic_term"]
+opaque buildSymbolicTerm : @& Location → @& Symbol → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_unary_operation"]
+opaque buildUnaryOperation : @& Location → @& UnaryOperator → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_binary_operation"]
+opaque buildBinaryOperation : @& Location → @& BinaryOperator → @& AstNode → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_interval"]
+opaque buildInterval : @& Location → @& AstNode → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_function"]
+opaque buildFunction : @& Location → @& String → @& Array AstNode → @& Int32 → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_pool"]
+opaque buildPool : @& Location → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_boolean_constant"]
+opaque buildBooleanConstant : @& Int32 → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_symbolic_atom"]
+opaque buildSymbolicAtom : @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_comparison"]
+opaque buildComparison : @& AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_guard"]
+opaque buildGuard : @& ComparisonOperator → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_literal"]
+opaque buildLiteral : @& Location → @& Sign → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_conditional_literal"]
+opaque buildConditionalLiteral : @& Location → @& AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_aggregate"]
+opaque buildAggregate : @& Location → @& Option AstNode → @& Array AstNode → @& Option AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_body_aggregate_element"]
+opaque buildBodyAggregateElement : @& Array AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_body_aggregate"]
+opaque buildBodyAggregate : @& Location → @& Option AstNode → @& AggregateFunction → @& Array AstNode → @& Option AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_head_aggregate_element"]
+opaque buildHeadAggregateElement : @& Array AstNode → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_head_aggregate"]
+opaque buildHeadAggregate : @& Location → @& Option AstNode → @& AggregateFunction → @& Array AstNode → @& Option AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_disjunction"]
+opaque buildDisjunction : @& Location → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_sequence"]
+opaque buildTheorySequence : @& Location → @& TheorySequenceType → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_function"]
+opaque buildTheoryFunction : @& Location → @& String → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_unparsed_term_element"]
+opaque buildTheoryUnparsedTermElement : @& Array String → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_unparsed_term"]
+opaque buildTheoryUnparsedTerm : @& Location → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_guard"]
+opaque buildTheoryGuard : @& String → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_atom_element"]
+opaque buildTheoryAtomElement : @& Array AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_atom"]
+opaque buildTheoryAtom : @& Location → @& AstNode → @& Array AstNode → @& Option AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_rule"]
+opaque buildRule : @& Location → @& AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_definition"]
+opaque buildDefinition : @& Location → @& String → @& AstNode → @& Int32 → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_show_signature"]
+opaque buildShowSignature : @& Location → @& String → @& Int32 → @& Int32 → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_show_term"]
+opaque buildShowTerm : @& Location → @& AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_minimize"]
+opaque buildMinimize : @& Location → @& AstNode → @& AstNode → @& Array AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_script"]
+opaque buildScript : @& Location → @& String → @& String → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_program"]
+opaque buildProgram : @& Location → @& String → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_external"]
+opaque buildExternal : @& Location → @& AstNode → @& Array AstNode → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_edge"]
+opaque buildEdge : @& Location → @& AstNode → @& AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_heuristic"]
+opaque buildHeuristic : @& Location → @& AstNode → @& Array AstNode → @& AstNode → @& AstNode → @& AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_project_atom"]
+opaque buildProjectAtom : @& Location → @& AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_project_signature"]
+opaque buildProjectSignature : @& Location → @& String → @& Int32 → @& Int32 → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_defined"]
+opaque buildDefined : @& Location → @& String → @& Int32 → @& Int32 → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_operator_definition"]
+opaque buildTheoryOperatorDefinition : @& Location → @& String → @& Int32 → @& TheoryOperatorType → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_term_definition"]
+opaque buildTheoryTermDefinition : @& Location → @& String → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_guard_definition"]
+opaque buildTheoryGuardDefinition : @& Array String → @& String → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_atom_definition"]
+opaque buildTheoryAtomDefinition : @& Location → @& TheoryAtomDefinitionType → @& String → @& Int32 → @& String → @& Option AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_theory_definition"]
+opaque buildTheoryDefinition : @& Location → @& String → @& Array AstNode → @& Array AstNode → IO (Except (Error × String) AstNode)
+
+@[extern "lean_build_comment"]
+opaque buildComment : @& Location → @& String → @& Int32 → IO (Except (Error × String) AstNode)
 
 @[extern "lean_clingo_version"]
 opaque version : Unit → (UInt32 × (UInt32 × UInt32))
@@ -739,8 +580,8 @@ opaque controlSolve : @& Control → @& SolveMode → @& Array Literal → @& So
 @[extern "lean_clingo_control_statistics"]
 opaque controlStatistics : @& Control → IO (Except (Error × String) Statistics)
 
-@[extern "lean_clingo_control_program_builder"]
-opaque controlProgramBuilder : @& Control → IO (Except (Error × String) ProgramBuilder)
+@[extern "lean_clingo_program_builder_init"]
+opaque programBuilderInit : @& Control → IO (Except (Error × String) ProgramBuilder)
 
 @[extern "lean_clingo_model_type"]
 opaque modelType : @& Model → IO (Except (Error × String) ModelType)
@@ -815,12 +656,21 @@ opaque statisticsMapAt : @& Statistics → UInt64 → @& String → IO (Except (
 opaque statisticsValueGet : @& Statistics → UInt64 → IO (Except (Error × String) Float)
 
 @[extern "lean_clingo_program_builder_add"]
-opaque programBuilderAdd : @& ProgramBuilder → @& AstStatement → IO (Except String Unit)
+opaque programBuilderAdd : @& ProgramBuilder → @& AstNode → IO (Except String Unit)
 
 @[extern "lean_clingo_program_builder_begin"]
 opaque programBuilderBegin : @& ProgramBuilder → IO (Except (Error × String) Unit)
 
 @[extern "lean_clingo_program_builder_end"]
 opaque programBuilderEnd : @& ProgramBuilder → IO (Except (Error × String) Unit)
+
+@[extern "lean_clingo_ast_get_type"]
+opaque astGetType : @& AstNode → IO (Except (Error × String) AstType)
+
+@[extern "lean_clingo_ast_to_string_size"]
+opaque astToStringSize : @& AstNode → IO (Except (Error × String) USize)
+
+@[extern "lean_clingo_ast_to_string"]
+opaque astToString : @& AstNode → IO (Except (Error × String) String)
 
 end Clingo.Generated.ClingoBindings

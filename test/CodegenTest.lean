@@ -366,11 +366,10 @@ def main : IO Unit := do
     IO.eprintln "✗ some recursive AST checks failed"
   -- === Full cleango codegen test ===
   IO.println "\n=== Full cleango codegen test ==="
-  let fullPath := clingoFullBindings.headerPath
-  let fullSrc ← IO.FS.readFile fullPath
+  let fullSrc ← readHeader clingoFullBindings
   let fullToks ← IO.ofExcept (tokenize fullSrc)
   let fullHeader ← IO.ofExcept (parseHeader fullToks)
-  IO.println s!"  parsed {fullHeader.decls.size} decls from reference header"
+  IO.println s!"  parsed {fullHeader.decls.size} decls from system header"
   let fullLean ← IO.ofExcept (emitLeanModule clingoFullBindings fullHeader)
   let fullShim ← IO.ofExcept (emitShim clingoFullBindings fullHeader)
   IO.println s!"  generated Lean: {fullLean.length} bytes"
@@ -379,14 +378,15 @@ def main : IO Unit := do
   IO.FS.writeFile fullShimFile fullShim
   let fullLeanFile : System.FilePath := "/tmp/ClingoFull.lean"
   IO.FS.writeFile fullLeanFile fullLean
+  let sysIncPath := "/opt/homebrew/include"
   let fullOut ← IO.Process.output {
     cmd := "cc"
     args := #["-fsyntax-only", "-I", leanIncPath,
-              "-I", refIncPath,
+              "-I", sysIncPath,
               fullShimFile.toString]
   }
   if fullOut.exitCode = 0 then
-    IO.println "✓ full cleango shim compiles against reference clingo.h"
+    IO.println "✓ full cleango shim compiles against system clingo.h"
   else
     IO.eprintln s!"✗ full cleango shim compile failed (exit {fullOut.exitCode}):"
     IO.eprintln fullOut.stderr
@@ -402,7 +402,21 @@ def main : IO Unit := do
     -- eventCallback: event type inductive in Lean
     ("inductive SolveEvent", "eventCallback: SolveEvent inductive in Lean"),
     -- controlSolve function present
-    ("lean_clingo_control_solve", "controlSolve: shim function emitted")
+    ("lean_clingo_control_solve", "controlSolve: shim function emitted"),
+    -- variadicBuilder: builder functions in Lean
+    ("opaque buildRule", "variadicBuilder: buildRule in Lean"),
+    ("opaque buildId", "variadicBuilder: buildId in Lean"),
+    ("opaque buildFunction", "variadicBuilder: buildFunction in Lean"),
+    ("opaque buildLiteral", "variadicBuilder: buildLiteral in Lean"),
+    -- variadicBuilder: C shim functions
+    ("lean_build_rule", "variadicBuilder: lean_build_rule in shim"),
+    ("lean_build_id", "variadicBuilder: lean_build_id in shim"),
+    ("clingo_ast_build(clingo_ast_type_rule", "variadicBuilder: clingo_ast_build call for rule"),
+    ("clingo_ast_build(clingo_ast_type_id", "variadicBuilder: clingo_ast_build call for id"),
+    -- variadicBuilder: array args generate malloc+loop
+    ("_buf = (clingo_ast_t **)malloc", "variadicBuilder: astArray malloc in shim"),
+    -- TheorySequenceType enum
+    ("opaque buildTheorySequence", "variadicBuilder: buildTheorySequence in Lean")
   ]
   for (pattern, desc) in fullChecks do
     if (fullShim.splitOn pattern).length > 1 ||
@@ -434,11 +448,11 @@ def main : IO Unit := do
   let cgOut ← IO.Process.output {
     cmd := "cc"
     args := #["-fsyntax-only", "-I", leanIncPath,
-              "-I", refIncPath,
+              "-I", sysIncPath,
               cgShimFile.toString]
   }
   if cgOut.exitCode = 0 then
-    IO.println "✓ cleango shim compiles against reference clingo.h"
+    IO.println "✓ cleango shim compiles against system clingo.h"
   else
     IO.eprintln s!"✗ cleango shim compile failed (exit {cgOut.exitCode}):"
     IO.eprintln cgOut.stderr

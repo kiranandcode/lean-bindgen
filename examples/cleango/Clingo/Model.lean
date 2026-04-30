@@ -15,22 +15,22 @@ abbrev FilterFlags := ShowType
 namespace FilterFlags
 
 def selectCSPAssignments : FilterFlags :=
-  { csp := true, shown := false, atoms := false, terms := false, all := false, complement := false }
+  { shown := false, atoms := false, terms := false, theory := true, all := false, complement := false }
 
 def selectShown : FilterFlags :=
-  { csp := false, shown := true, atoms := false, terms := false, all := false, complement := false }
+  { shown := true, atoms := false, terms := false, theory := false, all := false, complement := false }
 
 def selectAllAtoms : FilterFlags :=
-  { csp := false, shown := false, atoms := true, terms := false, all := false, complement := false }
+  { shown := false, atoms := true, terms := false, theory := false, all := false, complement := false }
 
 def selectAllTerms : FilterFlags :=
-  { csp := false, shown := false, atoms := false, terms := true, all := false, complement := false }
+  { shown := false, atoms := false, terms := true, theory := false, all := false, complement := false }
 
 def selectAll : FilterFlags :=
-  { csp := false, shown := false, atoms := false, terms := false, all := true, complement := false }
+  { shown := false, atoms := false, terms := false, theory := false, all := true, complement := false }
 
 def selectComplement : FilterFlags :=
-  { csp := false, shown := false, atoms := false, terms := false, all := false, complement := true }
+  { shown := false, atoms := false, terms := false, theory := false, all := false, complement := true }
 
 end FilterFlags
 

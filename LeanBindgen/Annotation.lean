@@ -277,6 +277,52 @@ structure ConstAnno where
   value : Option String := none -- if none, lookup from parsed CDecl.macroConst
   deriving Inhabited
 
+/-- How the error payload is constructed for `outParamBoolStatus`. -/
+inductive ErrorReturn
+  /-- Call `errorMessageFn()` → `char const *`, wrap as `Except String T`. -/
+  | string (errorMessageFn : String)
+  /-- Call `errorCodeFn()` → C enum, convert to Lean enum via helpers,
+  wrap as `Except <enumLean> T`. -/
+  | enum (errorCodeFn : String) (enumLean : String)
+  /-- Build `(enumLean × String)` from both an error code and a message
+  function, wrap as `Except (<enumLean> × String) T`. -/
+  | tuple (errorCodeFn : String) (enumLean : String) (errorMessageFn : String)
+  deriving Inhabited
+
+/-- The kind of an argument to a variadic builder function. -/
+inductive BuilderArgKind
+  | number | symbol | location | string
+  | ast | optionalAst | stringArray | astArray
+  deriving Repr, Inhabited
+
+/-- One argument of a variadic builder constructor. -/
+structure BuilderArg where
+  kind     : BuilderArgKind
+  leanName : String
+  enumType : Option String := none  -- for .number: Lean enum type name
+  deriving Repr, Inhabited
+
+/-- One fixed-arity wrapper around a variadic builder call. -/
+structure BuilderConstructor where
+  enumValue : String       -- C enum constant (e.g. "clingo_ast_type_rule")
+  leanName  : String       -- Lean function name (e.g. "buildRule")
+  args      : Array BuilderArg
+  deriving Repr, Inhabited
+
+/-- Describes a variadic C function (like `clingo_ast_build`) for which
+the codegen emits one fixed-arity C wrapper per constructor variant. -/
+structure VariadicBuilderMapping where
+  variadicFn     : String          -- e.g. "clingo_ast_build"
+  resultType     : String          -- Lean opaque type name (e.g. "AstNode")
+  resultCType    : String          -- C type (e.g. "clingo_ast_t")
+  locationCType  : String := ""    -- C typedef for location args
+  locationLean   : String := ""    -- Lean struct name for location args
+  symbolCType    : String := ""    -- C type for symbol args (e.g. "clingo_symbol_t")
+  symbolLean     : String := ""    -- Lean type for symbol args (e.g. "Symbol")
+  errorReturn    : ErrorReturn
+  constructors   : Array BuilderConstructor
+  deriving Inhabited
+
 /-- How a C type is presented in Lean. -/
 inductive TypeMapping
   /-- Wrap an integer C typedef as a fresh Lean `def`. -/
@@ -321,6 +367,11 @@ inductive TypeMapping
   gets an opaque type; the shim allocates a wrapper struct (original
   struct as first member) and provides per-field getters/setters. -/
   | mutableStruct (mapping : MutableStructMapping)
+  /-- A variadic C function (e.g. `clingo_ast_build`) for which the
+  codegen emits one fixed-arity C wrapper per constructor variant. The
+  type annotation itself is a no-op (the result type must be separately
+  annotated as `opaquePointer`). -/
+  | variadicBuilder (mapping : VariadicBuilderMapping)
   deriving Inhabited
 
 structure TypeAnno where
@@ -329,18 +380,6 @@ structure TypeAnno where
   /-- The unqualified Lean identifier we emit. -/
   lean   : String
   mapping : TypeMapping
-  deriving Inhabited
-
-/-- How the error payload is constructed for `outParamBoolStatus`. -/
-inductive ErrorReturn
-  /-- Call `errorMessageFn()` → `char const *`, wrap as `Except String T`. -/
-  | string (errorMessageFn : String)
-  /-- Call `errorCodeFn()` → C enum, convert to Lean enum via helpers,
-  wrap as `Except <enumLean> T`. -/
-  | enum (errorCodeFn : String) (enumLean : String)
-  /-- Build `(enumLean × String)` from both an error code and a message
-  function, wrap as `Except (<enumLean> × String) T`. -/
-  | tuple (errorCodeFn : String) (enumLean : String) (errorMessageFn : String)
   deriving Inhabited
 
 /-- How a C function's signature maps to Lean's. -/

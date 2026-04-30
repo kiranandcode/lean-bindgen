@@ -5,25 +5,27 @@ open LeanBindgen
 /-! # Full cleango bindings annotation
 
 Comprehensive annotation file that covers all types and functions from
-the clingo C API (reference/cleango/bindings/clingo.h). Generates the
-equivalent of the hand-written clingo-shim.c.
+the clingo C API (system clingo 5.8+). Generates the equivalent of
+the hand-written clingo-shim.c.
 
 Types and functions are organised in dependency order: scalars, enums,
-opaques, bitfield structs, callbacks, struct records, tagged unions,
-then functions.
+opaques, bitfield structs, callbacks, struct records, then functions.
+The old struct-based AST API has been replaced by the opaque
+`clingo_ast_t` attribute-based API.
 -/
 
 -- ============================================================
--- Core types + functions (bound against the reference header)
+-- Core types + functions (bound against the system header)
 -- ============================================================
 
 def clingoFullBindings : Bindings := {
-  headerPath := "reference/cleango/bindings/clingo.h"
+  headerPath := "/opt/homebrew/include/clingo.h"
   leanModule := `Generated.ClingoFull
   outDir     := ".lake/build/generated"
   shimPath   := ".lake/build/generated/clingo-full-shim.c"
   libPrefix  := "clingo"
   leanImports := #[]
+  preprocessorArgs := #["-DCLINGO_NO_VISIBILITY"]
   types := #[
     -- ── Scalar newtypes ──────────────────────────────────────
     { cName := "clingo_literal_t",   lean := "Literal",
@@ -44,7 +46,7 @@ def clingoFullBindings : Bindings := {
     -- ── Enumerations ─────────────────────────────────────────
     { cName := "clingo_error_t", lean := "Error",
       mapping := .inductiveEnum {
-        enumTag := "clingo_error"
+        enumTag := "clingo_error_e"
         variants := #[
           ("clingo_error_success",   "success"),
           ("clingo_error_runtime",   "runtime"),
@@ -55,7 +57,7 @@ def clingoFullBindings : Bindings := {
       } },
     { cName := "clingo_warning_t", lean := "Warning",
       mapping := .inductiveEnum {
-        enumTag := "clingo_warning"
+        enumTag := "clingo_warning_e"
         variants := #[
           ("clingo_warning_operation_undefined",  "operationUndefined"),
           ("clingo_warning_runtime_error",        "runtimeError"),
@@ -68,7 +70,7 @@ def clingoFullBindings : Bindings := {
       } },
     { cName := "clingo_truth_value_t", lean := "TruthValue",
       mapping := .inductiveEnum {
-        enumTag := "clingo_truth_value"
+        enumTag := "clingo_truth_value_e"
         variants := #[
           ("clingo_truth_value_free",  "free"),
           ("clingo_truth_value_true",  "true"),
@@ -77,7 +79,7 @@ def clingoFullBindings : Bindings := {
       } },
     { cName := "clingo_symbol_type_t", lean := "SymbolType",
       mapping := .inductiveEnum {
-        enumTag := "clingo_symbol_type"
+        enumTag := "clingo_symbol_type_e"
         variants := #[
           ("clingo_symbol_type_infimum",  "infimum"),
           ("clingo_symbol_type_number",   "number"),
@@ -88,7 +90,7 @@ def clingoFullBindings : Bindings := {
       } },
     { cName := "clingo_model_type_t", lean := "ModelType",
       mapping := .inductiveEnum {
-        enumTag := "clingo_model_type"
+        enumTag := "clingo_model_type_e"
         variants := #[
           ("clingo_model_type_stable_model",          "stableModel"),
           ("clingo_model_type_brave_consequences",    "braveConsequences"),
@@ -97,7 +99,7 @@ def clingoFullBindings : Bindings := {
       } },
     { cName := "clingo_statistics_type_t", lean := "StatisticsType",
       mapping := .inductiveEnum {
-        enumTag := "clingo_statistics_type"
+        enumTag := "clingo_statistics_type_e"
         variants := #[
           ("clingo_statistics_type_empty", "empty"),
           ("clingo_statistics_type_value", "value"),
@@ -107,9 +109,10 @@ def clingoFullBindings : Bindings := {
       } },
     { cName := "clingo_solve_event_type_t", lean := "SolveEventType",
       mapping := .inductiveEnum {
-        enumTag := "clingo_solve_event_type"
+        enumTag := "clingo_solve_event_type_e"
         variants := #[
           ("clingo_solve_event_type_model",      "model"),
+          ("clingo_solve_event_type_unsat",      "unsat"),
           ("clingo_solve_event_type_statistics", "statistics"),
           ("clingo_solve_event_type_finish",     "finish")
         ]
@@ -118,16 +121,16 @@ def clingoFullBindings : Bindings := {
     -- ── AST enumerations ─────────────────────────────────────
     { cName := "clingo_ast_sign_t", lean := "Sign",
       mapping := .inductiveEnum {
-        enumTag := "clingo_ast_sign"
+        enumTag := "clingo_ast_sign_e"
         variants := #[
-          ("clingo_ast_sign_none",            "none"),
+          ("clingo_ast_sign_no_sign",         "none"),
           ("clingo_ast_sign_negation",        "negation"),
           ("clingo_ast_sign_double_negation", "doubleNegation")
         ]
       } },
     { cName := "clingo_ast_comparison_operator_t", lean := "ComparisonOperator",
       mapping := .inductiveEnum {
-        enumTag := "clingo_ast_comparison_operator"
+        enumTag := "clingo_ast_comparison_operator_e"
         variants := #[
           ("clingo_ast_comparison_operator_greater_than",  "gt"),
           ("clingo_ast_comparison_operator_less_than",     "lt"),
@@ -137,23 +140,9 @@ def clingoFullBindings : Bindings := {
           ("clingo_ast_comparison_operator_equal",         "eq")
         ]
       } },
-    { cName := "clingo_ast_term_type_t", lean := "AstTermType",
-      mapping := .inductiveEnum {
-        enumTag := "clingo_ast_term_type"
-        variants := #[
-          ("clingo_ast_term_type_symbol",            "symbol"),
-          ("clingo_ast_term_type_variable",          "variable"),
-          ("clingo_ast_term_type_unary_operation",   "unaryOperation"),
-          ("clingo_ast_term_type_binary_operation",  "binaryOperation"),
-          ("clingo_ast_term_type_interval",          "interval"),
-          ("clingo_ast_term_type_function",          "function"),
-          ("clingo_ast_term_type_external_function", "externalFunction"),
-          ("clingo_ast_term_type_pool",              "pool")
-        ]
-      } },
     { cName := "clingo_ast_unary_operator_t", lean := "UnaryOperator",
       mapping := .inductiveEnum {
-        enumTag := "clingo_ast_unary_operator"
+        enumTag := "clingo_ast_unary_operator_e"
         variants := #[
           ("clingo_ast_unary_operator_minus",    "minus"),
           ("clingo_ast_unary_operator_negation", "negation"),
@@ -162,7 +151,7 @@ def clingoFullBindings : Bindings := {
       } },
     { cName := "clingo_ast_binary_operator_t", lean := "BinaryOperator",
       mapping := .inductiveEnum {
-        enumTag := "clingo_ast_binary_operator"
+        enumTag := "clingo_ast_binary_operator_e"
         variants := #[
           ("clingo_ast_binary_operator_xor",            "xor"),
           ("clingo_ast_binary_operator_or",             "or"),
@@ -175,19 +164,9 @@ def clingoFullBindings : Bindings := {
           ("clingo_ast_binary_operator_power",          "power")
         ]
       } },
-    { cName := "clingo_ast_literal_type_t", lean := "AstLiteralType",
-      mapping := .inductiveEnum {
-        enumTag := "clingo_ast_literal_type"
-        variants := #[
-          ("clingo_ast_literal_type_boolean",    "boolean"),
-          ("clingo_ast_literal_type_symbolic",   "symbolic"),
-          ("clingo_ast_literal_type_comparison", "comparison"),
-          ("clingo_ast_literal_type_csp",        "csp")
-        ]
-      } },
     { cName := "clingo_ast_aggregate_function_t", lean := "AggregateFunction",
       mapping := .inductiveEnum {
-        enumTag := "clingo_ast_aggregate_function"
+        enumTag := "clingo_ast_aggregate_function_e"
         variants := #[
           ("clingo_ast_aggregate_function_count", "count"),
           ("clingo_ast_aggregate_function_sum",   "sum"),
@@ -196,73 +175,18 @@ def clingoFullBindings : Bindings := {
           ("clingo_ast_aggregate_function_max",   "max")
         ]
       } },
-    { cName := "clingo_ast_theory_term_type_t", lean := "TheoryTermType",
+    { cName := "clingo_ast_theory_sequence_type_t", lean := "TheorySequenceType",
       mapping := .inductiveEnum {
-        enumTag := "clingo_ast_theory_term_type"
+        enumTag := "clingo_theory_sequence_type_e"
         variants := #[
-          ("clingo_ast_theory_term_type_symbol",        "symbol"),
-          ("clingo_ast_theory_term_type_variable",      "variable"),
-          ("clingo_ast_theory_term_type_tuple",         "tuple"),
-          ("clingo_ast_theory_term_type_list",          "list"),
-          ("clingo_ast_theory_term_type_set",           "set"),
-          ("clingo_ast_theory_term_type_function",      "function"),
-          ("clingo_ast_theory_term_type_unparsed_term", "unparsedTerm")
-        ]
-      } },
-    { cName := "clingo_ast_head_literal_type_t", lean := "HeadLiteralType",
-      mapping := .inductiveEnum {
-        enumTag := "clingo_ast_head_literal_type"
-        variants := #[
-          ("clingo_ast_head_literal_type_literal",        "literal"),
-          ("clingo_ast_head_literal_type_disjunction",    "disjunction"),
-          ("clingo_ast_head_literal_type_aggregate",      "aggregate"),
-          ("clingo_ast_head_literal_type_head_aggregate", "headAggregate"),
-          ("clingo_ast_head_literal_type_theory_atom",    "theoryAtom")
-        ]
-      } },
-    { cName := "clingo_ast_body_literal_type_t", lean := "BodyLiteralType",
-      mapping := .inductiveEnum {
-        enumTag := "clingo_ast_body_literal_type"
-        variants := #[
-          ("clingo_ast_body_literal_type_literal",        "literal"),
-          ("clingo_ast_body_literal_type_conditional",    "conditional"),
-          ("clingo_ast_body_literal_type_aggregate",      "aggregate"),
-          ("clingo_ast_body_literal_type_body_aggregate", "bodyAggregate"),
-          ("clingo_ast_body_literal_type_theory_atom",    "theoryAtom"),
-          ("clingo_ast_body_literal_type_disjoint",       "disjoint")
-        ]
-      } },
-    { cName := "clingo_ast_statement_type_t", lean := "StatementType",
-      mapping := .inductiveEnum {
-        enumTag := "clingo_ast_statement_type"
-        variants := #[
-          ("clingo_ast_statement_type_rule",                   "rule"),
-          ("clingo_ast_statement_type_const",                  "const"),
-          ("clingo_ast_statement_type_show_signature",         "showSignature"),
-          ("clingo_ast_statement_type_show_term",              "showTerm"),
-          ("clingo_ast_statement_type_minimize",               "minimize"),
-          ("clingo_ast_statement_type_script",                 "script"),
-          ("clingo_ast_statement_type_program",                "program"),
-          ("clingo_ast_statement_type_external",               "external"),
-          ("clingo_ast_statement_type_edge",                   "edge"),
-          ("clingo_ast_statement_type_heuristic",              "heuristic"),
-          ("clingo_ast_statement_type_project_atom",           "projectAtom"),
-          ("clingo_ast_statement_type_project_atom_signature", "projectAtomSignature"),
-          ("clingo_ast_statement_type_theory_definition",      "theoryDefinition"),
-          ("clingo_ast_statement_type_defined",                "defined")
-        ]
-      } },
-    { cName := "clingo_ast_script_type_t", lean := "ScriptType",
-      mapping := .inductiveEnum {
-        enumTag := "clingo_ast_script_type"
-        variants := #[
-          ("clingo_ast_script_type_lua",    "lua"),
-          ("clingo_ast_script_type_python", "python")
+          ("clingo_theory_sequence_type_tuple", "tuple"),
+          ("clingo_theory_sequence_type_set",   "set"),
+          ("clingo_theory_sequence_type_list",  "list")
         ]
       } },
     { cName := "clingo_ast_theory_operator_type_t", lean := "TheoryOperatorType",
       mapping := .inductiveEnum {
-        enumTag := "clingo_ast_theory_operator_type"
+        enumTag := "clingo_ast_theory_operator_type_e"
         variants := #[
           ("clingo_ast_theory_operator_type_unary",        "unary"),
           ("clingo_ast_theory_operator_type_binary_left",  "binaryLeft"),
@@ -271,7 +195,7 @@ def clingoFullBindings : Bindings := {
       } },
     { cName := "clingo_ast_theory_atom_definition_type_t", lean := "TheoryAtomDefinitionType",
       mapping := .inductiveEnum {
-        enumTag := "clingo_ast_theory_atom_definition_type"
+        enumTag := "clingo_ast_theory_atom_definition_type_e"
         variants := #[
           ("clingo_ast_theory_atom_definition_type_head",      "head"),
           ("clingo_ast_theory_atom_definition_type_body",      "body"),
@@ -311,7 +235,7 @@ def clingoFullBindings : Bindings := {
     -- ── Bitfield structs ─────────────────────────────────────
     { cName := "clingo_solve_result_bitset_t", lean := "SolveResult",
       mapping := .bitfieldStruct {
-        enumTag := "clingo_solve_result"
+        enumTag := "clingo_solve_result_e"
         fields := #[
           ("clingo_solve_result_satisfiable",   "satisfiable"),
           ("clingo_solve_result_unsatisfiable", "unsatisfiable"),
@@ -321,12 +245,12 @@ def clingoFullBindings : Bindings := {
       } },
     { cName := "clingo_show_type_bitset_t", lean := "ShowType",
       mapping := .bitfieldStruct {
-        enumTag := "clingo_show_type"
+        enumTag := "clingo_show_type_e"
         fields := #[
-          ("clingo_show_type_csp",        "csp"),
           ("clingo_show_type_shown",      "shown"),
           ("clingo_show_type_atoms",      "atoms"),
           ("clingo_show_type_terms",      "terms"),
+          ("clingo_show_type_theory",     "theory"),
           ("clingo_show_type_all",        "all"),
           ("clingo_show_type_complement", "complement")
         ]
@@ -334,7 +258,7 @@ def clingoFullBindings : Bindings := {
 
     { cName := "clingo_solve_mode_bitset_t", lean := "SolveMode",
       mapping := .bitfieldStruct {
-        enumTag := "clingo_solve_mode"
+        enumTag := "clingo_solve_mode_e"
         fields := #[
           ("clingo_solve_mode_async", "async"),
           ("clingo_solve_mode_yield", "yield")
@@ -403,601 +327,243 @@ def clingoFullBindings : Bindings := {
         arrayFields := #[("params", "size")]
       } },
 
-    -- ── AST struct records ───────────────────────────────────
-    -- Small leaf structs first, then larger ones that reference them.
+    -- ── New opaque AST node type (clingo 5.8+ attribute API) ─
+    { cName := "clingo_ast_t", lean := "AstNode",
+      mapping := .opaquePointer "clingo_ast_release" },
 
-    { cName := "clingo_ast_id_t", lean := "AstId",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_id"
-        fields := #[
-          ("location", "location"),
-          ("id",       "id")
-        ]
-      } },
-    { cName := "clingo_ast_comparison_t", lean := "AstComparison",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_comparison"
-        fields := #[
-          ("comparison", "comparison"),
-          ("left",       "left"),
-          ("right",      "right")
-        ]
-      } },
-
-    -- Unary/Binary/Interval/Function/Pool are sub-structs of Term
-    -- but they're only accessed through tagged-union pointers, so they
-    -- need their own struct records for the codegen to resolve field types.
-    { cName := "clingo_ast_unary_operation_t", lean := "AstUnaryOperation",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_unary_operation"
-        fields := #[
-          ("unary_operator", "unaryOperator"),
-          ("argument",       "argument")
-        ]
-      } },
-    { cName := "clingo_ast_binary_operation_t", lean := "AstBinaryOperation",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_binary_operation"
-        fields := #[
-          ("binary_operator", "binaryOperator"),
-          ("left",            "left"),
-          ("right",           "right")
-        ]
-      } },
-    { cName := "clingo_ast_interval_t", lean := "AstInterval",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_interval"
-        fields := #[
-          ("left",  "left"),
-          ("right", "right")
-        ]
-      } },
-    { cName := "clingo_ast_function_t", lean := "AstFunction",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_function"
-        fields := #[
-          ("name",      "name"),
-          ("arguments", "arguments")
-        ]
-        arrayFields := #[("arguments", "size")]
-      } },
-    { cName := "clingo_ast_pool_t", lean := "AstPool",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_pool"
-        fields := #[
-          ("arguments", "arguments")
-        ]
-        arrayFields := #[("arguments", "size")]
-      } },
-
-    -- CSP types
-    { cName := "clingo_ast_csp_product_term_t", lean := "CspProductTerm",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_csp_product_term"
-        fields := #[
-          ("location",    "location"),
-          ("coefficient", "coefficient"),
-          ("variable",    "variable")
-        ]
-      } },
-    { cName := "clingo_ast_csp_sum_term_t", lean := "CspSumTerm",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_csp_sum_term"
-        fields := #[
-          ("location", "location"),
-          ("terms",    "terms")
-        ]
-        arrayFields := #[("terms", "size")]
-      } },
-    { cName := "clingo_ast_csp_guard_t", lean := "CspGuard",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_csp_guard"
-        fields := #[
-          ("comparison", "comparison"),
-          ("term",       "term")
-        ]
-      } },
-    { cName := "clingo_ast_csp_literal_t", lean := "CspLiteral",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_csp_literal"
-        fields := #[
-          ("term",   "term"),
-          ("guards", "guards")
-        ]
-        arrayFields := #[("guards", "size")]
-      } },
-
-    -- Aggregate types
-    { cName := "clingo_ast_aggregate_guard_t", lean := "AggregateGuard",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_aggregate_guard"
-        fields := #[
-          ("comparison", "comparison"),
-          ("term",       "term")
-        ]
-      } },
-    { cName := "clingo_ast_conditional_literal_t", lean := "ConditionalLiteral",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_conditional_literal"
-        fields := #[
-          ("literal",   "literal"),
-          ("condition", "condition")
-        ]
-        arrayFields := #[("condition", "size")]
-      } },
-    { cName := "clingo_ast_aggregate_t", lean := "AstAggregate",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_aggregate"
-        fields := #[
-          ("elements",    "elements"),
-          ("left_guard",  "leftGuard"),
-          ("right_guard", "rightGuard")
-        ]
-        arrayFields := #[("elements", "size")]
-      } },
-    { cName := "clingo_ast_body_aggregate_element_t", lean := "BodyAggregateElement",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_body_aggregate_element"
-        fields := #[
-          ("tuple",     "tuple"),
-          ("condition", "condition")
-        ]
-        arrayFields := #[
-          ("tuple",     "tuple_size"),
-          ("condition", "condition_size")
-        ]
-      } },
-    { cName := "clingo_ast_body_aggregate_t", lean := "BodyAggregate",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_body_aggregate"
-        fields := #[
-          ("function",    "function"),
-          ("elements",    "elements"),
-          ("left_guard",  "leftGuard"),
-          ("right_guard", "rightGuard")
-        ]
-        arrayFields := #[("elements", "size")]
-      } },
-    { cName := "clingo_ast_head_aggregate_element_t", lean := "HeadAggregateElement",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_head_aggregate_element"
-        fields := #[
-          ("tuple",               "tuple"),
-          ("conditional_literal", "conditionalLiteral")
-        ]
-        arrayFields := #[("tuple", "tuple_size")]
-      } },
-    { cName := "clingo_ast_head_aggregate_t", lean := "HeadAggregate",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_head_aggregate"
-        fields := #[
-          ("function",    "function"),
-          ("elements",    "elements"),
-          ("left_guard",  "leftGuard"),
-          ("right_guard", "rightGuard")
-        ]
-        arrayFields := #[("elements", "size")]
-      } },
-    { cName := "clingo_ast_disjunction_t", lean := "Disjunction",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_disjunction"
-        fields := #[
-          ("elements", "elements")
-        ]
-        arrayFields := #[("elements", "size")]
-      } },
-    { cName := "clingo_ast_disjoint_element_t", lean := "DisjointElement",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_disjoint_element"
-        fields := #[
-          ("location",  "location"),
-          ("tuple",     "tuple"),
-          ("term",      "term"),
-          ("condition", "condition")
-        ]
-        arrayFields := #[
-          ("tuple",     "tuple_size"),
-          ("condition", "condition_size")
-        ]
-      } },
-    { cName := "clingo_ast_disjoint_t", lean := "AstDisjoint",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_disjoint"
-        fields := #[
-          ("elements", "elements")
-        ]
-        arrayFields := #[("elements", "size")]
-      } },
-
-    -- Theory types
-    { cName := "clingo_ast_theory_term_array_t", lean := "TheoryTermArray",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_term_array"
-        fields := #[
-          ("terms", "terms")
-        ]
-        arrayFields := #[("terms", "size")]
-      } },
-    { cName := "clingo_ast_theory_function_t", lean := "TheoryFunction",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_function"
-        fields := #[
-          ("name",      "name"),
-          ("arguments", "arguments")
-        ]
-        arrayFields := #[("arguments", "size")]
-      } },
-    { cName := "clingo_ast_theory_unparsed_term_element_t", lean := "TheoryUnparsedTermElement",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_unparsed_term_element"
-        fields := #[
-          -- NOTE: operators is `char const *const *` (array of strings) + size.
-          -- We skip it for now; lean-bindgen doesn't yet handle arrays of strings.
-          ("term", "term")
-        ]
-      } },
-    { cName := "clingo_ast_theory_unparsed_term_t", lean := "TheoryUnparsedTerm",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_unparsed_term"
-        fields := #[
-          ("elements", "elements")
-        ]
-        arrayFields := #[("elements", "size")]
-      } },
-    { cName := "clingo_ast_theory_atom_element_t", lean := "TheoryAtomElement",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_atom_element"
-        fields := #[
-          ("tuple",     "tuple"),
-          ("condition", "condition")
-        ]
-        arrayFields := #[
-          ("tuple",     "tuple_size"),
-          ("condition", "condition_size")
-        ]
-      } },
-    { cName := "clingo_ast_theory_guard_t", lean := "TheoryGuard",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_guard"
-        fields := #[
-          ("operator_name", "operatorName"),
-          ("term",          "term")
-        ]
-      } },
-    { cName := "clingo_ast_theory_atom_t", lean := "TheoryAtom",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_atom"
-        fields := #[
-          ("term",     "term"),
-          ("elements", "elements"),
-          ("guard",    "guard")
-        ]
-        arrayFields := #[("elements", "size")]
-      } },
-    -- Theory definition types
-    { cName := "clingo_ast_theory_operator_definition_t", lean := "TheoryOperatorDefinition",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_operator_definition"
-        fields := #[
-          ("location", "location"),
-          ("name",     "name"),
-          ("priority", "priority"),
-          ("type",     "type")
-        ]
-      } },
-    { cName := "clingo_ast_theory_term_definition_t", lean := "TheoryTermDefinition",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_term_definition"
-        fields := #[
-          ("location",  "location"),
-          ("name",      "name"),
-          ("operators", "operators")
-        ]
-        arrayFields := #[("operators", "size")]
-      } },
-    { cName := "clingo_ast_theory_guard_definition_t", lean := "TheoryGuardDefinition",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_guard_definition"
-        fields := #[
-          ("term", "term")
-          -- NOTE: operators is `char const *const *` (array of strings) + size.
-          -- Skipped for now.
-        ]
-      } },
-    { cName := "clingo_ast_theory_atom_definition_t", lean := "TheoryAtomDefinition",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_atom_definition"
-        fields := #[
-          ("location", "location"),
-          ("type",     "type"),
-          ("name",     "name"),
-          ("arity",    "arity"),
-          ("elements", "elements"),
-          ("guard",    "guard")
-        ]
-      } },
-    { cName := "clingo_ast_theory_definition_t", lean := "TheoryDefinition",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_theory_definition"
-        fields := #[
-          ("name",  "name"),
-          ("terms", "terms"),
-          ("atoms", "atoms")
-        ]
-        arrayFields := #[
-          ("terms", "terms_size"),
-          ("atoms", "atoms_size")
-        ]
-      } },
-
-    -- Statement variant payloads
-    { cName := "clingo_ast_rule_t", lean := "AstRule",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_rule"
-        fields := #[
-          ("head", "head"),
-          ("body", "body")
-        ]
-        arrayFields := #[("body", "size")]
-      } },
-    { cName := "clingo_ast_definition_t", lean := "AstDefinition",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_definition"
-        fields := #[
-          ("name",       "name"),
-          ("value",      "value"),
-          ("is_default", "isDefault")
-        ]
-      } },
-    { cName := "clingo_ast_show_signature_t", lean := "AstShowSignature",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_show_signature"
-        fields := #[
-          ("signature", "signature"),
-          ("csp",       "csp")
-        ]
-      } },
-    { cName := "clingo_ast_show_term_t", lean := "AstShowTerm",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_show_term"
-        fields := #[
-          ("term", "term"),
-          ("body", "body"),
-          ("csp",  "csp")
-        ]
-        arrayFields := #[("body", "size")]
-      } },
-    { cName := "clingo_ast_defined_t", lean := "AstDefined",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_defined"
-        fields := #[
-          ("signature", "signature")
-        ]
-      } },
-    { cName := "clingo_ast_minimize_t", lean := "AstMinimize",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_minimize"
-        fields := #[
-          ("weight",   "weight"),
-          ("priority", "priority"),
-          ("tuple",    "tuple"),
-          ("body",     "body")
-        ]
-        arrayFields := #[
-          ("tuple", "tuple_size"),
-          ("body",  "body_size")
-        ]
-      } },
-    { cName := "clingo_ast_script_t", lean := "AstScript",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_script"
-        fields := #[
-          ("type", "type"),
-          ("code", "code")
-        ]
-      } },
-    { cName := "clingo_ast_program_t", lean := "AstProgram",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_program"
-        fields := #[
-          ("name",       "name"),
-          ("parameters", "parameters")
-        ]
-        arrayFields := #[("parameters", "size")]
-      } },
-    { cName := "clingo_ast_external_t", lean := "AstExternal",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_external"
-        fields := #[
-          ("atom", "atom"),
-          ("body", "body"),
-          ("type", "type")
-        ]
-        arrayFields := #[("body", "size")]
-      } },
-    { cName := "clingo_ast_edge_t", lean := "AstEdge",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_edge"
-        fields := #[
-          ("u",    "u"),
-          ("v",    "v"),
-          ("body", "body")
-        ]
-        arrayFields := #[("body", "size")]
-      } },
-    { cName := "clingo_ast_heuristic_t", lean := "AstHeuristic",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_heuristic"
-        fields := #[
-          ("atom",     "atom"),
-          ("body",     "body"),
-          ("bias",     "bias"),
-          ("priority", "priority"),
-          ("modifier", "modifier")
-        ]
-        arrayFields := #[("body", "size")]
-      } },
-    { cName := "clingo_ast_project_t", lean := "AstProject",
-      mapping := .structRecord {
-        cStructTag := "clingo_ast_project"
-        fields := #[
-          ("atom", "atom"),
-          ("body", "body")
-        ]
-        arrayFields := #[("body", "size")]
-      } },
-
-    -- ── Tagged unions ────────────────────────────────────────
-    { cName := "clingo_ast_term_t", lean := "AstTerm",
-      mapping := .taggedUnion {
-        cStructTag := "clingo_ast_term"
-        tagField   := "type"
-        tagEnum    := "clingo_ast_term_type"
-        sharedFields := #[("location", "location")]
+    -- ── New AST enumerations (5.8+ attribute API) ─────────────
+    { cName := "clingo_ast_type_t", lean := "AstType",
+      mapping := .inductiveEnum {
+        enumTag := "clingo_ast_type_e"
         variants := #[
-          { cTag := "clingo_ast_term_type_symbol",
-            leanCtor := "symbol", unionField := "symbol" },
-          { cTag := "clingo_ast_term_type_variable",
-            leanCtor := "variable", unionField := "variable",
-            payloadOverride := some #[("val", "String")] },
-          { cTag := "clingo_ast_term_type_unary_operation",
-            leanCtor := "unaryOperation", unionField := "unary_operation" },
-          { cTag := "clingo_ast_term_type_binary_operation",
-            leanCtor := "binaryOperation", unionField := "binary_operation" },
-          { cTag := "clingo_ast_term_type_interval",
-            leanCtor := "interval", unionField := "interval" },
-          { cTag := "clingo_ast_term_type_function",
-            leanCtor := "function", unionField := "function" },
-          { cTag := "clingo_ast_term_type_external_function",
-            leanCtor := "externalFunction", unionField := "external_function" },
-          { cTag := "clingo_ast_term_type_pool",
-            leanCtor := "pool", unionField := "pool" }
+          ("clingo_ast_type_id",                           "id"),
+          ("clingo_ast_type_variable",                     "variable"),
+          ("clingo_ast_type_symbolic_term",                "symbolicTerm"),
+          ("clingo_ast_type_unary_operation",              "unaryOperation"),
+          ("clingo_ast_type_binary_operation",             "binaryOperation"),
+          ("clingo_ast_type_interval",                     "interval"),
+          ("clingo_ast_type_function",                     "function"),
+          ("clingo_ast_type_pool",                         "pool"),
+          ("clingo_ast_type_boolean_constant",             "booleanConstant"),
+          ("clingo_ast_type_symbolic_atom",                "symbolicAtom"),
+          ("clingo_ast_type_comparison",                   "comparison"),
+          ("clingo_ast_type_guard",                        "guard"),
+          ("clingo_ast_type_conditional_literal",          "conditionalLiteral"),
+          ("clingo_ast_type_aggregate",                    "aggregate"),
+          ("clingo_ast_type_body_aggregate_element",       "bodyAggregateElement"),
+          ("clingo_ast_type_body_aggregate",               "bodyAggregate"),
+          ("clingo_ast_type_head_aggregate_element",       "headAggregateElement"),
+          ("clingo_ast_type_head_aggregate",               "headAggregate"),
+          ("clingo_ast_type_disjunction",                  "disjunction"),
+          ("clingo_ast_type_theory_sequence",              "theorySequence"),
+          ("clingo_ast_type_theory_function",              "theoryFunction"),
+          ("clingo_ast_type_theory_unparsed_term_element", "theoryUnparsedTermElement"),
+          ("clingo_ast_type_theory_unparsed_term",         "theoryUnparsedTerm"),
+          ("clingo_ast_type_theory_guard",                 "theoryGuard"),
+          ("clingo_ast_type_theory_atom_element",          "theoryAtomElement"),
+          ("clingo_ast_type_theory_atom",                  "theoryAtom"),
+          ("clingo_ast_type_literal",                      "literal"),
+          ("clingo_ast_type_theory_operator_definition",   "theoryOperatorDefinition"),
+          ("clingo_ast_type_theory_term_definition",       "theoryTermDefinition"),
+          ("clingo_ast_type_theory_guard_definition",      "theoryGuardDefinition"),
+          ("clingo_ast_type_theory_atom_definition",       "theoryAtomDefinition"),
+          ("clingo_ast_type_rule",                         "rule"),
+          ("clingo_ast_type_definition",                   "definition"),
+          ("clingo_ast_type_show_signature",               "showSignature"),
+          ("clingo_ast_type_show_term",                    "showTerm"),
+          ("clingo_ast_type_minimize",                     "minimize"),
+          ("clingo_ast_type_script",                       "script"),
+          ("clingo_ast_type_program",                      "program"),
+          ("clingo_ast_type_external",                     "external"),
+          ("clingo_ast_type_edge",                         "edge"),
+          ("clingo_ast_type_heuristic",                    "heuristic"),
+          ("clingo_ast_type_project_atom",                 "projectAtom"),
+          ("clingo_ast_type_project_signature",            "projectSignature"),
+          ("clingo_ast_type_defined",                      "defined"),
+          ("clingo_ast_type_theory_definition",            "theoryDefinition"),
+          ("clingo_ast_type_comment",                      "comment")
         ]
       } },
-    { cName := "clingo_ast_literal_t", lean := "AstLiteral",
-      mapping := .taggedUnion {
-        cStructTag := "clingo_ast_literal"
-        tagField   := "type"
-        tagEnum    := "clingo_ast_literal_type"
-        sharedFields := #[
-          ("location", "location"),
-          ("sign",     "sign")
-        ]
+    { cName := "clingo_ast_attribute_type_t", lean := "AstAttributeType",
+      mapping := .inductiveEnum {
+        enumTag := "clingo_ast_attribute_type_e"
         variants := #[
-          { cTag := "clingo_ast_literal_type_boolean",
-            leanCtor := "boolean", unionField := "boolean" },
-          { cTag := "clingo_ast_literal_type_symbolic",
-            leanCtor := "symbolic", unionField := "symbol" },
-          { cTag := "clingo_ast_literal_type_comparison",
-            leanCtor := "comparison", unionField := "comparison" },
-          { cTag := "clingo_ast_literal_type_csp",
-            leanCtor := "csp", unionField := "csp_literal" }
+          ("clingo_ast_attribute_type_number",       "number"),
+          ("clingo_ast_attribute_type_symbol",       "symbol"),
+          ("clingo_ast_attribute_type_location",     "location"),
+          ("clingo_ast_attribute_type_string",       "string"),
+          ("clingo_ast_attribute_type_ast",          "ast"),
+          ("clingo_ast_attribute_type_optional_ast", "optionalAst"),
+          ("clingo_ast_attribute_type_string_array", "stringArray"),
+          ("clingo_ast_attribute_type_ast_array",    "astArray")
         ]
       } },
-    { cName := "clingo_ast_head_literal_t", lean := "HeadLiteral",
-      mapping := .taggedUnion {
-        cStructTag := "clingo_ast_head_literal"
-        tagField   := "type"
-        tagEnum    := "clingo_ast_head_literal_type"
-        sharedFields := #[("location", "location")]
+    { cName := "clingo_ast_attribute_t", lean := "AstAttribute",
+      mapping := .inductiveEnum {
+        enumTag := "clingo_ast_attribute_e"
         variants := #[
-          { cTag := "clingo_ast_head_literal_type_literal",
-            leanCtor := "literal", unionField := "literal" },
-          { cTag := "clingo_ast_head_literal_type_disjunction",
-            leanCtor := "disjunction", unionField := "disjunction" },
-          { cTag := "clingo_ast_head_literal_type_aggregate",
-            leanCtor := "aggregate", unionField := "aggregate" },
-          { cTag := "clingo_ast_head_literal_type_head_aggregate",
-            leanCtor := "headAggregate", unionField := "head_aggregate" },
-          { cTag := "clingo_ast_head_literal_type_theory_atom",
-            leanCtor := "theoryAtom", unionField := "theory_atom" }
+          ("clingo_ast_attribute_argument",      "argument"),
+          ("clingo_ast_attribute_arguments",     "arguments"),
+          ("clingo_ast_attribute_arity",         "arity"),
+          ("clingo_ast_attribute_atom",          "atom"),
+          ("clingo_ast_attribute_atoms",         "atoms"),
+          ("clingo_ast_attribute_atom_type",     "atomType"),
+          ("clingo_ast_attribute_bias",          "bias"),
+          ("clingo_ast_attribute_body",          "body"),
+          ("clingo_ast_attribute_code",          "code"),
+          ("clingo_ast_attribute_coefficient",   "coefficient"),
+          ("clingo_ast_attribute_comparison",    "comparison"),
+          ("clingo_ast_attribute_condition",     "condition"),
+          ("clingo_ast_attribute_elements",      "elements"),
+          ("clingo_ast_attribute_external",      "external"),
+          ("clingo_ast_attribute_external_type", "externalType"),
+          ("clingo_ast_attribute_function",      "function"),
+          ("clingo_ast_attribute_guard",         "guard"),
+          ("clingo_ast_attribute_guards",        "guards"),
+          ("clingo_ast_attribute_head",          "head"),
+          ("clingo_ast_attribute_is_default",    "isDefault"),
+          ("clingo_ast_attribute_left",          "left"),
+          ("clingo_ast_attribute_left_guard",    "leftGuard"),
+          ("clingo_ast_attribute_literal",       "literal"),
+          ("clingo_ast_attribute_location",      "location"),
+          ("clingo_ast_attribute_modifier",      "modifier"),
+          ("clingo_ast_attribute_name",          "name"),
+          ("clingo_ast_attribute_node_u",        "nodeU"),
+          ("clingo_ast_attribute_node_v",        "nodeV"),
+          ("clingo_ast_attribute_operator_name", "operatorName"),
+          ("clingo_ast_attribute_operator_type", "operatorType"),
+          ("clingo_ast_attribute_operators",     "operators"),
+          ("clingo_ast_attribute_parameters",    "parameters"),
+          ("clingo_ast_attribute_positive",      "positive"),
+          ("clingo_ast_attribute_priority",      "priority"),
+          ("clingo_ast_attribute_right",         "right"),
+          ("clingo_ast_attribute_right_guard",   "rightGuard"),
+          ("clingo_ast_attribute_sequence_type", "sequenceType"),
+          ("clingo_ast_attribute_sign",          "sign"),
+          ("clingo_ast_attribute_symbol",        "symbol"),
+          ("clingo_ast_attribute_term",          "term"),
+          ("clingo_ast_attribute_terms",         "terms"),
+          ("clingo_ast_attribute_value",         "value"),
+          ("clingo_ast_attribute_variable",      "variable"),
+          ("clingo_ast_attribute_weight",        "weight"),
+          ("clingo_ast_attribute_comment_type",  "commentType")
         ]
       } },
-    { cName := "clingo_ast_body_literal_t", lean := "BodyLiteral",
-      mapping := .taggedUnion {
-        cStructTag := "clingo_ast_body_literal"
-        tagField   := "type"
-        tagEnum    := "clingo_ast_body_literal_type"
-        sharedFields := #[
-          ("location", "location"),
-          ("sign",     "sign")
-        ]
-        variants := #[
-          { cTag := "clingo_ast_body_literal_type_literal",
-            leanCtor := "literal", unionField := "literal" },
-          { cTag := "clingo_ast_body_literal_type_conditional",
-            leanCtor := "conditional", unionField := "conditional" },
-          { cTag := "clingo_ast_body_literal_type_aggregate",
-            leanCtor := "aggregate", unionField := "aggregate" },
-          { cTag := "clingo_ast_body_literal_type_body_aggregate",
-            leanCtor := "bodyAggregate", unionField := "body_aggregate" },
-          { cTag := "clingo_ast_body_literal_type_theory_atom",
-            leanCtor := "theoryAtom", unionField := "theory_atom" },
-          { cTag := "clingo_ast_body_literal_type_disjoint",
-            leanCtor := "disjoint", unionField := "disjoint" }
+
+    -- ── Variadic AST builder (clingo_ast_build) ─────────────
+    { cName := "clingo_ast_build", lean := "AstBuilder",
+      mapping := .variadicBuilder {
+        variadicFn := "clingo_ast_build"
+        resultType := "AstNode"
+        resultCType := "clingo_ast"
+        locationCType := "clingo_location_t"
+        locationLean := "Location"
+        symbolCType := "clingo_symbol_t"
+        symbolLean := "Symbol"
+        errorReturn := .tuple "clingo_error_code" "Error" "clingo_error_message"
+        constructors := #[
+          -- Terms
+          { enumValue := "clingo_ast_type_id", leanName := "buildId",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩] },
+          { enumValue := "clingo_ast_type_variable", leanName := "buildVariable",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩] },
+          { enumValue := "clingo_ast_type_symbolic_term", leanName := "buildSymbolicTerm",
+            args := #[⟨.location, "location", none⟩, ⟨.symbol, "symbol", none⟩] },
+          { enumValue := "clingo_ast_type_unary_operation", leanName := "buildUnaryOperation",
+            args := #[⟨.location, "location", none⟩, ⟨.number, "op", some "UnaryOperator"⟩, ⟨.ast, "argument", none⟩] },
+          { enumValue := "clingo_ast_type_binary_operation", leanName := "buildBinaryOperation",
+            args := #[⟨.location, "location", none⟩, ⟨.number, "op", some "BinaryOperator"⟩, ⟨.ast, "left", none⟩, ⟨.ast, "right", none⟩] },
+          { enumValue := "clingo_ast_type_interval", leanName := "buildInterval",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "left", none⟩, ⟨.ast, "right", none⟩] },
+          { enumValue := "clingo_ast_type_function", leanName := "buildFunction",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.astArray, "arguments", none⟩, ⟨.number, "external", none⟩] },
+          { enumValue := "clingo_ast_type_pool", leanName := "buildPool",
+            args := #[⟨.location, "location", none⟩, ⟨.astArray, "arguments", none⟩] },
+          -- Atoms
+          { enumValue := "clingo_ast_type_boolean_constant", leanName := "buildBooleanConstant",
+            args := #[⟨.number, "value", none⟩] },
+          { enumValue := "clingo_ast_type_symbolic_atom", leanName := "buildSymbolicAtom",
+            args := #[⟨.ast, "symbol", none⟩] },
+          { enumValue := "clingo_ast_type_comparison", leanName := "buildComparison",
+            args := #[⟨.ast, "term", none⟩, ⟨.astArray, "guards", none⟩] },
+          { enumValue := "clingo_ast_type_guard", leanName := "buildGuard",
+            args := #[⟨.number, "comparison", some "ComparisonOperator"⟩, ⟨.ast, "term", none⟩] },
+          -- Literals
+          { enumValue := "clingo_ast_type_literal", leanName := "buildLiteral",
+            args := #[⟨.location, "location", none⟩, ⟨.number, "sign", some "Sign"⟩, ⟨.ast, "atom", none⟩] },
+          -- Aggregates
+          { enumValue := "clingo_ast_type_conditional_literal", leanName := "buildConditionalLiteral",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "literal", none⟩, ⟨.astArray, "condition", none⟩] },
+          { enumValue := "clingo_ast_type_aggregate", leanName := "buildAggregate",
+            args := #[⟨.location, "location", none⟩, ⟨.optionalAst, "leftGuard", none⟩, ⟨.astArray, "elements", none⟩, ⟨.optionalAst, "rightGuard", none⟩] },
+          { enumValue := "clingo_ast_type_body_aggregate_element", leanName := "buildBodyAggregateElement",
+            args := #[⟨.astArray, "terms", none⟩, ⟨.astArray, "condition", none⟩] },
+          { enumValue := "clingo_ast_type_body_aggregate", leanName := "buildBodyAggregate",
+            args := #[⟨.location, "location", none⟩, ⟨.optionalAst, "leftGuard", none⟩, ⟨.number, "function", some "AggregateFunction"⟩, ⟨.astArray, "elements", none⟩, ⟨.optionalAst, "rightGuard", none⟩] },
+          { enumValue := "clingo_ast_type_head_aggregate_element", leanName := "buildHeadAggregateElement",
+            args := #[⟨.astArray, "terms", none⟩, ⟨.ast, "condition", none⟩] },
+          { enumValue := "clingo_ast_type_head_aggregate", leanName := "buildHeadAggregate",
+            args := #[⟨.location, "location", none⟩, ⟨.optionalAst, "leftGuard", none⟩, ⟨.number, "function", some "AggregateFunction"⟩, ⟨.astArray, "elements", none⟩, ⟨.optionalAst, "rightGuard", none⟩] },
+          { enumValue := "clingo_ast_type_disjunction", leanName := "buildDisjunction",
+            args := #[⟨.location, "location", none⟩, ⟨.astArray, "elements", none⟩] },
+          -- Theory terms
+          { enumValue := "clingo_ast_type_theory_sequence", leanName := "buildTheorySequence",
+            args := #[⟨.location, "location", none⟩, ⟨.number, "sequenceType", some "TheorySequenceType"⟩, ⟨.astArray, "terms", none⟩] },
+          { enumValue := "clingo_ast_type_theory_function", leanName := "buildTheoryFunction",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.astArray, "arguments", none⟩] },
+          { enumValue := "clingo_ast_type_theory_unparsed_term_element", leanName := "buildTheoryUnparsedTermElement",
+            args := #[⟨.stringArray, "operators", none⟩, ⟨.ast, "term", none⟩] },
+          { enumValue := "clingo_ast_type_theory_unparsed_term", leanName := "buildTheoryUnparsedTerm",
+            args := #[⟨.location, "location", none⟩, ⟨.astArray, "elements", none⟩] },
+          { enumValue := "clingo_ast_type_theory_guard", leanName := "buildTheoryGuard",
+            args := #[⟨.string, "operatorName", none⟩, ⟨.ast, "term", none⟩] },
+          { enumValue := "clingo_ast_type_theory_atom_element", leanName := "buildTheoryAtomElement",
+            args := #[⟨.astArray, "terms", none⟩, ⟨.astArray, "condition", none⟩] },
+          { enumValue := "clingo_ast_type_theory_atom", leanName := "buildTheoryAtom",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "term", none⟩, ⟨.astArray, "elements", none⟩, ⟨.optionalAst, "guard", none⟩] },
+          -- Statements
+          { enumValue := "clingo_ast_type_rule", leanName := "buildRule",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "head", none⟩, ⟨.astArray, "body", none⟩] },
+          { enumValue := "clingo_ast_type_definition", leanName := "buildDefinition",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.ast, "value", none⟩, ⟨.number, "isDefault", none⟩] },
+          { enumValue := "clingo_ast_type_show_signature", leanName := "buildShowSignature",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.number, "arity", none⟩, ⟨.number, "positive", none⟩] },
+          { enumValue := "clingo_ast_type_show_term", leanName := "buildShowTerm",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "term", none⟩, ⟨.astArray, "body", none⟩] },
+          { enumValue := "clingo_ast_type_minimize", leanName := "buildMinimize",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "weight", none⟩, ⟨.ast, "priority", none⟩, ⟨.astArray, "terms", none⟩, ⟨.astArray, "body", none⟩] },
+          { enumValue := "clingo_ast_type_script", leanName := "buildScript",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.string, "code", none⟩] },
+          { enumValue := "clingo_ast_type_program", leanName := "buildProgram",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.astArray, "parameters", none⟩] },
+          { enumValue := "clingo_ast_type_external", leanName := "buildExternal",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "atom", none⟩, ⟨.astArray, "body", none⟩, ⟨.ast, "externalType", none⟩] },
+          { enumValue := "clingo_ast_type_edge", leanName := "buildEdge",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "nodeU", none⟩, ⟨.ast, "nodeV", none⟩, ⟨.astArray, "body", none⟩] },
+          { enumValue := "clingo_ast_type_heuristic", leanName := "buildHeuristic",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "atom", none⟩, ⟨.astArray, "body", none⟩, ⟨.ast, "bias", none⟩, ⟨.ast, "priority", none⟩, ⟨.ast, "modifier", none⟩] },
+          { enumValue := "clingo_ast_type_project_atom", leanName := "buildProjectAtom",
+            args := #[⟨.location, "location", none⟩, ⟨.ast, "atom", none⟩, ⟨.astArray, "body", none⟩] },
+          { enumValue := "clingo_ast_type_project_signature", leanName := "buildProjectSignature",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.number, "arity", none⟩, ⟨.number, "positive", none⟩] },
+          { enumValue := "clingo_ast_type_defined", leanName := "buildDefined",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.number, "arity", none⟩, ⟨.number, "positive", none⟩] },
+          -- Theory definitions
+          { enumValue := "clingo_ast_type_theory_operator_definition", leanName := "buildTheoryOperatorDefinition",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.number, "priority", none⟩, ⟨.number, "operatorType", some "TheoryOperatorType"⟩] },
+          { enumValue := "clingo_ast_type_theory_term_definition", leanName := "buildTheoryTermDefinition",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.astArray, "operators", none⟩] },
+          { enumValue := "clingo_ast_type_theory_guard_definition", leanName := "buildTheoryGuardDefinition",
+            args := #[⟨.stringArray, "operators", none⟩, ⟨.string, "term", none⟩] },
+          { enumValue := "clingo_ast_type_theory_atom_definition", leanName := "buildTheoryAtomDefinition",
+            args := #[⟨.location, "location", none⟩, ⟨.number, "atomType", some "TheoryAtomDefinitionType"⟩, ⟨.string, "name", none⟩, ⟨.number, "arity", none⟩, ⟨.string, "term", none⟩, ⟨.optionalAst, "guard", none⟩] },
+          { enumValue := "clingo_ast_type_theory_definition", leanName := "buildTheoryDefinition",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "name", none⟩, ⟨.astArray, "terms", none⟩, ⟨.astArray, "atoms", none⟩] },
+          -- Comment
+          { enumValue := "clingo_ast_type_comment", leanName := "buildComment",
+            args := #[⟨.location, "location", none⟩, ⟨.string, "value", none⟩, ⟨.number, "commentType", none⟩] }
         ]
       } },
-    { cName := "clingo_ast_theory_term_t", lean := "AstTheoryTerm",
-      mapping := .taggedUnion {
-        cStructTag := "clingo_ast_theory_term"
-        tagField   := "type"
-        tagEnum    := "clingo_ast_theory_term_type"
-        sharedFields := #[("location", "location")]
-        variants := #[
-          { cTag := "clingo_ast_theory_term_type_symbol",
-            leanCtor := "symbol", unionField := "symbol" },
-          { cTag := "clingo_ast_theory_term_type_variable",
-            leanCtor := "variable", unionField := "variable",
-            payloadOverride := some #[("val", "String")] },
-          { cTag := "clingo_ast_theory_term_type_tuple",
-            leanCtor := "tuple", unionField := "tuple" },
-          { cTag := "clingo_ast_theory_term_type_list",
-            leanCtor := "list", unionField := "list" },
-          { cTag := "clingo_ast_theory_term_type_set",
-            leanCtor := "set", unionField := "set" },
-          { cTag := "clingo_ast_theory_term_type_function",
-            leanCtor := "function", unionField := "function" },
-          { cTag := "clingo_ast_theory_term_type_unparsed_term",
-            leanCtor := "unparsedTerm", unionField := "unparsed_term" }
-        ]
-      } },
-    { cName := "clingo_ast_statement_t", lean := "AstStatement",
-      mapping := .taggedUnion {
-        cStructTag := "clingo_ast_statement"
-        tagField   := "type"
-        tagEnum    := "clingo_ast_statement_type"
-        sharedFields := #[("location", "location")]
-        variants := #[
-          { cTag := "clingo_ast_statement_type_rule",
-            leanCtor := "rule", unionField := "rule" },
-          { cTag := "clingo_ast_statement_type_const",
-            leanCtor := "const", unionField := "definition" },
-          { cTag := "clingo_ast_statement_type_show_signature",
-            leanCtor := "showSignature", unionField := "show_signature" },
-          { cTag := "clingo_ast_statement_type_show_term",
-            leanCtor := "showTerm", unionField := "show_term" },
-          { cTag := "clingo_ast_statement_type_minimize",
-            leanCtor := "minimize", unionField := "minimize" },
-          { cTag := "clingo_ast_statement_type_script",
-            leanCtor := "script", unionField := "script" },
-          { cTag := "clingo_ast_statement_type_program",
-            leanCtor := "program", unionField := "program" },
-          { cTag := "clingo_ast_statement_type_external",
-            leanCtor := "external", unionField := "external" },
-          { cTag := "clingo_ast_statement_type_edge",
-            leanCtor := "edge", unionField := "edge" },
-          { cTag := "clingo_ast_statement_type_heuristic",
-            leanCtor := "heuristic", unionField := "heuristic" },
-          { cTag := "clingo_ast_statement_type_project_atom",
-            leanCtor := "projectAtom", unionField := "project_atom" },
-          { cTag := "clingo_ast_statement_type_project_atom_signature",
-            leanCtor := "projectAtomSignature", unionField := "project_signature" },
-          { cTag := "clingo_ast_statement_type_theory_definition",
-            leanCtor := "theoryDefinition", unionField := "theory_definition" },
-          { cTag := "clingo_ast_statement_type_defined",
-            leanCtor := "defined", unionField := "defined" }
-        ]
-      } }
   ]
   functions := #[
     -- ── Version ──────────────────────────────────────────────
@@ -1143,10 +709,10 @@ def clingoFullBindings : Bindings := {
       lean  := "controlStatistics"
       style := .outParamBoolStatus 1 (.tuple "clingo_error_code" "Error" "clingo_error_message")
       inIO := true },
-    -- bool clingo_control_program_builder(clingo_control_t *control,
+    -- bool clingo_program_builder_init(clingo_control_t *control,
     --   clingo_program_builder_t **builder)
-    { cName := "clingo_control_program_builder"
-      lean  := "controlProgramBuilder"
+    { cName := "clingo_program_builder_init"
+      lean  := "programBuilderInit"
       style := .outParamBoolStatus 1 (.tuple "clingo_error_code" "Error" "clingo_error_message")
       inIO := true },
 
@@ -1311,6 +877,24 @@ def clingoFullBindings : Bindings := {
     { cName := "clingo_program_builder_end"
       lean  := "programBuilderEnd"
       style := .boolStatus (.tuple "clingo_error_code" "Error" "clingo_error_message")
+      inIO := true },
+
+    -- ── AST introspection (5.8+ opaque API) ──────────────────
+    -- bool clingo_ast_get_type(clingo_ast_t *ast, clingo_ast_type_t *type)
+    { cName := "clingo_ast_get_type"
+      lean  := "astGetType"
+      style := .outParamBoolStatus 1 (.tuple "clingo_error_code" "Error" "clingo_error_message")
+      inIO := true },
+    -- bool clingo_ast_to_string_size(clingo_ast_t *ast, size_t *size)
+    { cName := "clingo_ast_to_string_size"
+      lean  := "astToStringSize"
+      style := .outParamBoolStatus 1 (.tuple "clingo_error_code" "Error" "clingo_error_message")
+      inIO := true },
+    -- bool clingo_ast_to_string(clingo_ast_t *ast, char *string, size_t size)
+    { cName := "clingo_ast_to_string"
+      lean  := "astToString"
+      style := .callerAllocates "clingo_ast_to_string_size" 1 2
+                 (.tuple "clingo_error_code" "Error" "clingo_error_message")
       inIO := true }
   ]
 }

@@ -1,5 +1,6 @@
 import Clingo.Symbol
 import Clingo.Ast
+import Clingo.Control
 import Lean.Elab
 
 open Lean Elab Meta
@@ -1361,10 +1362,10 @@ def build_term (t: Syntax): TSyntax `term := TSyntax.mk t
 syntax "add_clingo_query!" term ":" (colGt clingo_statement)*  : term
 macro_rules 
 | `(term| add_clingo_query! $control:term : $cs:clingo_statement*) =>
-    `(($control : Clingo.Control).withProgramBuilder fun pb => do
-        pb.addStatements [$(Syntax.TSepArray.ofElems <| cs.raw.map build_term),*]
-        return ()
-     )
+    let withPB := Lean.mkCIdent ``Clingo.Control.withProgramBuilder
+    let addStmts := Lean.mkCIdent ``Clingo.Control.addAstStatements
+    let stmtList := Syntax.TSepArray.ofElems <| cs.raw.map build_term
+    `($withPB $control fun pb => ($addStmts pb [$stmtList,*]))
 
 syntax "clingo_term!" "(" clingo_term ")" : term
 elab_rules : term

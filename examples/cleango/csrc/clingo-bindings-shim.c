@@ -61,312 +61,6 @@ lean_object* part_to_lean(clingo_part_t v);
 
 clingo_part_t lean_to_part(b_lean_obj_arg obj);
 
-static void free_ast_id(clingo_ast_id_t *p);
-
-lean_object* ast_id_to_lean(clingo_ast_id_t v);
-
-clingo_ast_id_t lean_to_ast_id(b_lean_obj_arg obj);
-
-static void free_ast_comparison(clingo_ast_comparison_t *p);
-
-lean_object* ast_comparison_to_lean(clingo_ast_comparison_t v);
-
-clingo_ast_comparison_t lean_to_ast_comparison(b_lean_obj_arg obj);
-
-static void free_ast_unary_operation(clingo_ast_unary_operation_t *p);
-
-lean_object* ast_unary_operation_to_lean(clingo_ast_unary_operation_t v);
-
-clingo_ast_unary_operation_t lean_to_ast_unary_operation(b_lean_obj_arg obj);
-
-static void free_ast_binary_operation(clingo_ast_binary_operation_t *p);
-
-lean_object* ast_binary_operation_to_lean(clingo_ast_binary_operation_t v);
-
-clingo_ast_binary_operation_t lean_to_ast_binary_operation(b_lean_obj_arg obj);
-
-static void free_ast_interval(clingo_ast_interval_t *p);
-
-lean_object* ast_interval_to_lean(clingo_ast_interval_t v);
-
-clingo_ast_interval_t lean_to_ast_interval(b_lean_obj_arg obj);
-
-static void free_ast_function(clingo_ast_function_t *p);
-
-lean_object* ast_function_to_lean(clingo_ast_function_t v);
-
-clingo_ast_function_t lean_to_ast_function(b_lean_obj_arg obj);
-
-static void free_ast_pool(clingo_ast_pool_t *p);
-
-lean_object* ast_pool_to_lean(clingo_ast_pool_t v);
-
-clingo_ast_pool_t lean_to_ast_pool(b_lean_obj_arg obj);
-
-static void free_csp_product_term(clingo_ast_csp_product_term_t *p);
-
-lean_object* csp_product_term_to_lean(clingo_ast_csp_product_term_t v);
-
-clingo_ast_csp_product_term_t lean_to_csp_product_term(b_lean_obj_arg obj);
-
-static void free_csp_sum_term(clingo_ast_csp_sum_term_t *p);
-
-lean_object* csp_sum_term_to_lean(clingo_ast_csp_sum_term_t v);
-
-clingo_ast_csp_sum_term_t lean_to_csp_sum_term(b_lean_obj_arg obj);
-
-static void free_csp_guard(clingo_ast_csp_guard_t *p);
-
-lean_object* csp_guard_to_lean(clingo_ast_csp_guard_t v);
-
-clingo_ast_csp_guard_t lean_to_csp_guard(b_lean_obj_arg obj);
-
-static void free_csp_literal(clingo_ast_csp_literal_t *p);
-
-lean_object* csp_literal_to_lean(clingo_ast_csp_literal_t v);
-
-clingo_ast_csp_literal_t lean_to_csp_literal(b_lean_obj_arg obj);
-
-static void free_aggregate_guard(clingo_ast_aggregate_guard_t *p);
-
-lean_object* aggregate_guard_to_lean(clingo_ast_aggregate_guard_t v);
-
-clingo_ast_aggregate_guard_t lean_to_aggregate_guard(b_lean_obj_arg obj);
-
-static void free_conditional_literal(clingo_ast_conditional_literal_t *p);
-
-lean_object* conditional_literal_to_lean(clingo_ast_conditional_literal_t v);
-
-clingo_ast_conditional_literal_t lean_to_conditional_literal(b_lean_obj_arg obj);
-
-static void free_ast_aggregate(clingo_ast_aggregate_t *p);
-
-lean_object* ast_aggregate_to_lean(clingo_ast_aggregate_t v);
-
-clingo_ast_aggregate_t lean_to_ast_aggregate(b_lean_obj_arg obj);
-
-static void free_body_aggregate_element(clingo_ast_body_aggregate_element_t *p);
-
-lean_object* body_aggregate_element_to_lean(clingo_ast_body_aggregate_element_t v);
-
-clingo_ast_body_aggregate_element_t lean_to_body_aggregate_element(b_lean_obj_arg obj);
-
-static void free_body_aggregate(clingo_ast_body_aggregate_t *p);
-
-lean_object* body_aggregate_to_lean(clingo_ast_body_aggregate_t v);
-
-clingo_ast_body_aggregate_t lean_to_body_aggregate(b_lean_obj_arg obj);
-
-static void free_head_aggregate_element(clingo_ast_head_aggregate_element_t *p);
-
-lean_object* head_aggregate_element_to_lean(clingo_ast_head_aggregate_element_t v);
-
-clingo_ast_head_aggregate_element_t lean_to_head_aggregate_element(b_lean_obj_arg obj);
-
-static void free_head_aggregate(clingo_ast_head_aggregate_t *p);
-
-lean_object* head_aggregate_to_lean(clingo_ast_head_aggregate_t v);
-
-clingo_ast_head_aggregate_t lean_to_head_aggregate(b_lean_obj_arg obj);
-
-static void free_disjunction(clingo_ast_disjunction_t *p);
-
-lean_object* disjunction_to_lean(clingo_ast_disjunction_t v);
-
-clingo_ast_disjunction_t lean_to_disjunction(b_lean_obj_arg obj);
-
-static void free_disjoint_element(clingo_ast_disjoint_element_t *p);
-
-lean_object* disjoint_element_to_lean(clingo_ast_disjoint_element_t v);
-
-clingo_ast_disjoint_element_t lean_to_disjoint_element(b_lean_obj_arg obj);
-
-static void free_ast_disjoint(clingo_ast_disjoint_t *p);
-
-lean_object* ast_disjoint_to_lean(clingo_ast_disjoint_t v);
-
-clingo_ast_disjoint_t lean_to_ast_disjoint(b_lean_obj_arg obj);
-
-static void free_theory_term_array(clingo_ast_theory_term_array_t *p);
-
-lean_object* theory_term_array_to_lean(clingo_ast_theory_term_array_t v);
-
-clingo_ast_theory_term_array_t lean_to_theory_term_array(b_lean_obj_arg obj);
-
-static void free_theory_function(clingo_ast_theory_function_t *p);
-
-lean_object* theory_function_to_lean(clingo_ast_theory_function_t v);
-
-clingo_ast_theory_function_t lean_to_theory_function(b_lean_obj_arg obj);
-
-static void free_theory_unparsed_term_element(clingo_ast_theory_unparsed_term_element_t *p);
-
-lean_object* theory_unparsed_term_element_to_lean(clingo_ast_theory_unparsed_term_element_t v);
-
-clingo_ast_theory_unparsed_term_element_t lean_to_theory_unparsed_term_element(b_lean_obj_arg obj);
-
-static void free_theory_unparsed_term(clingo_ast_theory_unparsed_term_t *p);
-
-lean_object* theory_unparsed_term_to_lean(clingo_ast_theory_unparsed_term_t v);
-
-clingo_ast_theory_unparsed_term_t lean_to_theory_unparsed_term(b_lean_obj_arg obj);
-
-static void free_theory_atom_element(clingo_ast_theory_atom_element_t *p);
-
-lean_object* theory_atom_element_to_lean(clingo_ast_theory_atom_element_t v);
-
-clingo_ast_theory_atom_element_t lean_to_theory_atom_element(b_lean_obj_arg obj);
-
-static void free_theory_guard(clingo_ast_theory_guard_t *p);
-
-lean_object* theory_guard_to_lean(clingo_ast_theory_guard_t v);
-
-clingo_ast_theory_guard_t lean_to_theory_guard(b_lean_obj_arg obj);
-
-static void free_theory_atom(clingo_ast_theory_atom_t *p);
-
-lean_object* theory_atom_to_lean(clingo_ast_theory_atom_t v);
-
-clingo_ast_theory_atom_t lean_to_theory_atom(b_lean_obj_arg obj);
-
-static void free_theory_operator_definition(clingo_ast_theory_operator_definition_t *p);
-
-lean_object* theory_operator_definition_to_lean(clingo_ast_theory_operator_definition_t v);
-
-clingo_ast_theory_operator_definition_t lean_to_theory_operator_definition(b_lean_obj_arg obj);
-
-static void free_theory_term_definition(clingo_ast_theory_term_definition_t *p);
-
-lean_object* theory_term_definition_to_lean(clingo_ast_theory_term_definition_t v);
-
-clingo_ast_theory_term_definition_t lean_to_theory_term_definition(b_lean_obj_arg obj);
-
-static void free_theory_guard_definition(clingo_ast_theory_guard_definition_t *p);
-
-lean_object* theory_guard_definition_to_lean(clingo_ast_theory_guard_definition_t v);
-
-clingo_ast_theory_guard_definition_t lean_to_theory_guard_definition(b_lean_obj_arg obj);
-
-static void free_theory_atom_definition(clingo_ast_theory_atom_definition_t *p);
-
-lean_object* theory_atom_definition_to_lean(clingo_ast_theory_atom_definition_t v);
-
-clingo_ast_theory_atom_definition_t lean_to_theory_atom_definition(b_lean_obj_arg obj);
-
-static void free_theory_definition(clingo_ast_theory_definition_t *p);
-
-lean_object* theory_definition_to_lean(clingo_ast_theory_definition_t v);
-
-clingo_ast_theory_definition_t lean_to_theory_definition(b_lean_obj_arg obj);
-
-static void free_ast_rule(clingo_ast_rule_t *p);
-
-lean_object* ast_rule_to_lean(clingo_ast_rule_t v);
-
-clingo_ast_rule_t lean_to_ast_rule(b_lean_obj_arg obj);
-
-static void free_ast_definition(clingo_ast_definition_t *p);
-
-lean_object* ast_definition_to_lean(clingo_ast_definition_t v);
-
-clingo_ast_definition_t lean_to_ast_definition(b_lean_obj_arg obj);
-
-static void free_ast_show_signature(clingo_ast_show_signature_t *p);
-
-lean_object* ast_show_signature_to_lean(clingo_ast_show_signature_t v);
-
-clingo_ast_show_signature_t lean_to_ast_show_signature(b_lean_obj_arg obj);
-
-static void free_ast_show_term(clingo_ast_show_term_t *p);
-
-lean_object* ast_show_term_to_lean(clingo_ast_show_term_t v);
-
-clingo_ast_show_term_t lean_to_ast_show_term(b_lean_obj_arg obj);
-
-static void free_ast_defined(clingo_ast_defined_t *p);
-
-lean_object* ast_defined_to_lean(clingo_ast_defined_t v);
-
-clingo_ast_defined_t lean_to_ast_defined(b_lean_obj_arg obj);
-
-static void free_ast_minimize(clingo_ast_minimize_t *p);
-
-lean_object* ast_minimize_to_lean(clingo_ast_minimize_t v);
-
-clingo_ast_minimize_t lean_to_ast_minimize(b_lean_obj_arg obj);
-
-static void free_ast_script(clingo_ast_script_t *p);
-
-lean_object* ast_script_to_lean(clingo_ast_script_t v);
-
-clingo_ast_script_t lean_to_ast_script(b_lean_obj_arg obj);
-
-static void free_ast_program(clingo_ast_program_t *p);
-
-lean_object* ast_program_to_lean(clingo_ast_program_t v);
-
-clingo_ast_program_t lean_to_ast_program(b_lean_obj_arg obj);
-
-static void free_ast_external(clingo_ast_external_t *p);
-
-lean_object* ast_external_to_lean(clingo_ast_external_t v);
-
-clingo_ast_external_t lean_to_ast_external(b_lean_obj_arg obj);
-
-static void free_ast_edge(clingo_ast_edge_t *p);
-
-lean_object* ast_edge_to_lean(clingo_ast_edge_t v);
-
-clingo_ast_edge_t lean_to_ast_edge(b_lean_obj_arg obj);
-
-static void free_ast_heuristic(clingo_ast_heuristic_t *p);
-
-lean_object* ast_heuristic_to_lean(clingo_ast_heuristic_t v);
-
-clingo_ast_heuristic_t lean_to_ast_heuristic(b_lean_obj_arg obj);
-
-static void free_ast_project(clingo_ast_project_t *p);
-
-lean_object* ast_project_to_lean(clingo_ast_project_t v);
-
-clingo_ast_project_t lean_to_ast_project(b_lean_obj_arg obj);
-
-static void free_ast_term(clingo_ast_term_t *p);
-
-lean_object* ast_term_to_lean(clingo_ast_term_t v);
-
-clingo_ast_term_t lean_to_ast_term(b_lean_obj_arg obj);
-
-static void free_ast_literal(clingo_ast_literal_t *p);
-
-lean_object* ast_literal_to_lean(clingo_ast_literal_t v);
-
-clingo_ast_literal_t lean_to_ast_literal(b_lean_obj_arg obj);
-
-static void free_head_literal(clingo_ast_head_literal_t *p);
-
-lean_object* head_literal_to_lean(clingo_ast_head_literal_t v);
-
-clingo_ast_head_literal_t lean_to_head_literal(b_lean_obj_arg obj);
-
-static void free_body_literal(clingo_ast_body_literal_t *p);
-
-lean_object* body_literal_to_lean(clingo_ast_body_literal_t v);
-
-clingo_ast_body_literal_t lean_to_body_literal(b_lean_obj_arg obj);
-
-static void free_ast_theory_term(clingo_ast_theory_term_t *p);
-
-lean_object* ast_theory_term_to_lean(clingo_ast_theory_term_t v);
-
-clingo_ast_theory_term_t lean_to_ast_theory_term(b_lean_obj_arg obj);
-
-static void free_ast_statement(clingo_ast_statement_t *p);
-
-lean_object* ast_statement_to_lean(clingo_ast_statement_t v);
-
-clingo_ast_statement_t lean_to_ast_statement(b_lean_obj_arg obj);
-
 static clingo_error_t lean_to_error(uint8_t cidx) {
   switch (cidx) {
     case 0:
@@ -564,8 +258,10 @@ static clingo_solve_event_type_t lean_to_solve_event_type(uint8_t cidx) {
     case 0:
       return clingo_solve_event_type_model;
     case 1:
-      return clingo_solve_event_type_statistics;
+      return clingo_solve_event_type_unsat;
     case 2:
+      return clingo_solve_event_type_statistics;
+    case 3:
       return clingo_solve_event_type_finish;
     default:
       return (clingo_solve_event_type_t)0;
@@ -576,10 +272,12 @@ static uint8_t solve_event_type_to_lean(clingo_solve_event_type_t v) {
   switch (v) {
     case clingo_solve_event_type_model:
       return 0;
-    case clingo_solve_event_type_statistics:
+    case clingo_solve_event_type_unsat:
       return 1;
-    case clingo_solve_event_type_finish:
+    case clingo_solve_event_type_statistics:
       return 2;
+    case clingo_solve_event_type_finish:
+      return 3;
     default:
       return 0;
   }
@@ -588,7 +286,7 @@ static uint8_t solve_event_type_to_lean(clingo_solve_event_type_t v) {
 static clingo_ast_sign_t lean_to_sign(uint8_t cidx) {
   switch (cidx) {
     case 0:
-      return clingo_ast_sign_none;
+      return clingo_ast_sign_no_sign;
     case 1:
       return clingo_ast_sign_negation;
     case 2:
@@ -600,7 +298,7 @@ static clingo_ast_sign_t lean_to_sign(uint8_t cidx) {
 
 static uint8_t sign_to_lean(clingo_ast_sign_t v) {
   switch (v) {
-    case clingo_ast_sign_none:
+    case clingo_ast_sign_no_sign:
       return 0;
     case clingo_ast_sign_negation:
       return 1;
@@ -644,52 +342,6 @@ static uint8_t comparison_operator_to_lean(clingo_ast_comparison_operator_t v) {
       return 4;
     case clingo_ast_comparison_operator_equal:
       return 5;
-    default:
-      return 0;
-  }
-}
-
-static clingo_ast_term_type_t lean_to_ast_term_type(uint8_t cidx) {
-  switch (cidx) {
-    case 0:
-      return clingo_ast_term_type_symbol;
-    case 1:
-      return clingo_ast_term_type_variable;
-    case 2:
-      return clingo_ast_term_type_unary_operation;
-    case 3:
-      return clingo_ast_term_type_binary_operation;
-    case 4:
-      return clingo_ast_term_type_interval;
-    case 5:
-      return clingo_ast_term_type_function;
-    case 6:
-      return clingo_ast_term_type_external_function;
-    case 7:
-      return clingo_ast_term_type_pool;
-    default:
-      return (clingo_ast_term_type_t)0;
-  }
-}
-
-static uint8_t ast_term_type_to_lean(clingo_ast_term_type_t v) {
-  switch (v) {
-    case clingo_ast_term_type_symbol:
-      return 0;
-    case clingo_ast_term_type_variable:
-      return 1;
-    case clingo_ast_term_type_unary_operation:
-      return 2;
-    case clingo_ast_term_type_binary_operation:
-      return 3;
-    case clingo_ast_term_type_interval:
-      return 4;
-    case clingo_ast_term_type_function:
-      return 5;
-    case clingo_ast_term_type_external_function:
-      return 6;
-    case clingo_ast_term_type_pool:
-      return 7;
     default:
       return 0;
   }
@@ -771,36 +423,6 @@ static uint8_t binary_operator_to_lean(clingo_ast_binary_operator_t v) {
   }
 }
 
-static clingo_ast_literal_type_t lean_to_ast_literal_type(uint8_t cidx) {
-  switch (cidx) {
-    case 0:
-      return clingo_ast_literal_type_boolean;
-    case 1:
-      return clingo_ast_literal_type_symbolic;
-    case 2:
-      return clingo_ast_literal_type_comparison;
-    case 3:
-      return clingo_ast_literal_type_csp;
-    default:
-      return (clingo_ast_literal_type_t)0;
-  }
-}
-
-static uint8_t ast_literal_type_to_lean(clingo_ast_literal_type_t v) {
-  switch (v) {
-    case clingo_ast_literal_type_boolean:
-      return 0;
-    case clingo_ast_literal_type_symbolic:
-      return 1;
-    case clingo_ast_literal_type_comparison:
-      return 2;
-    case clingo_ast_literal_type_csp:
-      return 3;
-    default:
-      return 0;
-  }
-}
-
 static clingo_ast_aggregate_function_t lean_to_aggregate_function(uint8_t cidx) {
   switch (cidx) {
     case 0:
@@ -835,207 +457,27 @@ static uint8_t aggregate_function_to_lean(clingo_ast_aggregate_function_t v) {
   }
 }
 
-static clingo_ast_theory_term_type_t lean_to_theory_term_type(uint8_t cidx) {
+static clingo_ast_theory_sequence_type_t lean_to_theory_sequence_type(uint8_t cidx) {
   switch (cidx) {
     case 0:
-      return clingo_ast_theory_term_type_symbol;
+      return clingo_theory_sequence_type_tuple;
     case 1:
-      return clingo_ast_theory_term_type_variable;
+      return clingo_theory_sequence_type_set;
     case 2:
-      return clingo_ast_theory_term_type_tuple;
-    case 3:
-      return clingo_ast_theory_term_type_list;
-    case 4:
-      return clingo_ast_theory_term_type_set;
-    case 5:
-      return clingo_ast_theory_term_type_function;
-    case 6:
-      return clingo_ast_theory_term_type_unparsed_term;
+      return clingo_theory_sequence_type_list;
     default:
-      return (clingo_ast_theory_term_type_t)0;
+      return (clingo_ast_theory_sequence_type_t)0;
   }
 }
 
-static uint8_t theory_term_type_to_lean(clingo_ast_theory_term_type_t v) {
+static uint8_t theory_sequence_type_to_lean(clingo_ast_theory_sequence_type_t v) {
   switch (v) {
-    case clingo_ast_theory_term_type_symbol:
+    case clingo_theory_sequence_type_tuple:
       return 0;
-    case clingo_ast_theory_term_type_variable:
+    case clingo_theory_sequence_type_set:
       return 1;
-    case clingo_ast_theory_term_type_tuple:
+    case clingo_theory_sequence_type_list:
       return 2;
-    case clingo_ast_theory_term_type_list:
-      return 3;
-    case clingo_ast_theory_term_type_set:
-      return 4;
-    case clingo_ast_theory_term_type_function:
-      return 5;
-    case clingo_ast_theory_term_type_unparsed_term:
-      return 6;
-    default:
-      return 0;
-  }
-}
-
-static clingo_ast_head_literal_type_t lean_to_head_literal_type(uint8_t cidx) {
-  switch (cidx) {
-    case 0:
-      return clingo_ast_head_literal_type_literal;
-    case 1:
-      return clingo_ast_head_literal_type_disjunction;
-    case 2:
-      return clingo_ast_head_literal_type_aggregate;
-    case 3:
-      return clingo_ast_head_literal_type_head_aggregate;
-    case 4:
-      return clingo_ast_head_literal_type_theory_atom;
-    default:
-      return (clingo_ast_head_literal_type_t)0;
-  }
-}
-
-static uint8_t head_literal_type_to_lean(clingo_ast_head_literal_type_t v) {
-  switch (v) {
-    case clingo_ast_head_literal_type_literal:
-      return 0;
-    case clingo_ast_head_literal_type_disjunction:
-      return 1;
-    case clingo_ast_head_literal_type_aggregate:
-      return 2;
-    case clingo_ast_head_literal_type_head_aggregate:
-      return 3;
-    case clingo_ast_head_literal_type_theory_atom:
-      return 4;
-    default:
-      return 0;
-  }
-}
-
-static clingo_ast_body_literal_type_t lean_to_body_literal_type(uint8_t cidx) {
-  switch (cidx) {
-    case 0:
-      return clingo_ast_body_literal_type_literal;
-    case 1:
-      return clingo_ast_body_literal_type_conditional;
-    case 2:
-      return clingo_ast_body_literal_type_aggregate;
-    case 3:
-      return clingo_ast_body_literal_type_body_aggregate;
-    case 4:
-      return clingo_ast_body_literal_type_theory_atom;
-    case 5:
-      return clingo_ast_body_literal_type_disjoint;
-    default:
-      return (clingo_ast_body_literal_type_t)0;
-  }
-}
-
-static uint8_t body_literal_type_to_lean(clingo_ast_body_literal_type_t v) {
-  switch (v) {
-    case clingo_ast_body_literal_type_literal:
-      return 0;
-    case clingo_ast_body_literal_type_conditional:
-      return 1;
-    case clingo_ast_body_literal_type_aggregate:
-      return 2;
-    case clingo_ast_body_literal_type_body_aggregate:
-      return 3;
-    case clingo_ast_body_literal_type_theory_atom:
-      return 4;
-    case clingo_ast_body_literal_type_disjoint:
-      return 5;
-    default:
-      return 0;
-  }
-}
-
-static clingo_ast_statement_type_t lean_to_statement_type(uint8_t cidx) {
-  switch (cidx) {
-    case 0:
-      return clingo_ast_statement_type_rule;
-    case 1:
-      return clingo_ast_statement_type_const;
-    case 2:
-      return clingo_ast_statement_type_show_signature;
-    case 3:
-      return clingo_ast_statement_type_show_term;
-    case 4:
-      return clingo_ast_statement_type_minimize;
-    case 5:
-      return clingo_ast_statement_type_script;
-    case 6:
-      return clingo_ast_statement_type_program;
-    case 7:
-      return clingo_ast_statement_type_external;
-    case 8:
-      return clingo_ast_statement_type_edge;
-    case 9:
-      return clingo_ast_statement_type_heuristic;
-    case 10:
-      return clingo_ast_statement_type_project_atom;
-    case 11:
-      return clingo_ast_statement_type_project_atom_signature;
-    case 12:
-      return clingo_ast_statement_type_theory_definition;
-    case 13:
-      return clingo_ast_statement_type_defined;
-    default:
-      return (clingo_ast_statement_type_t)0;
-  }
-}
-
-static uint8_t statement_type_to_lean(clingo_ast_statement_type_t v) {
-  switch (v) {
-    case clingo_ast_statement_type_rule:
-      return 0;
-    case clingo_ast_statement_type_const:
-      return 1;
-    case clingo_ast_statement_type_show_signature:
-      return 2;
-    case clingo_ast_statement_type_show_term:
-      return 3;
-    case clingo_ast_statement_type_minimize:
-      return 4;
-    case clingo_ast_statement_type_script:
-      return 5;
-    case clingo_ast_statement_type_program:
-      return 6;
-    case clingo_ast_statement_type_external:
-      return 7;
-    case clingo_ast_statement_type_edge:
-      return 8;
-    case clingo_ast_statement_type_heuristic:
-      return 9;
-    case clingo_ast_statement_type_project_atom:
-      return 10;
-    case clingo_ast_statement_type_project_atom_signature:
-      return 11;
-    case clingo_ast_statement_type_theory_definition:
-      return 12;
-    case clingo_ast_statement_type_defined:
-      return 13;
-    default:
-      return 0;
-  }
-}
-
-static clingo_ast_script_type_t lean_to_script_type(uint8_t cidx) {
-  switch (cidx) {
-    case 0:
-      return clingo_ast_script_type_lua;
-    case 1:
-      return clingo_ast_script_type_python;
-    default:
-      return (clingo_ast_script_type_t)0;
-  }
-}
-
-static uint8_t script_type_to_lean(clingo_ast_script_type_t v) {
-  switch (v) {
-    case clingo_ast_script_type_lua:
-      return 0;
-    case clingo_ast_script_type_python:
-      return 1;
     default:
       return 0;
   }
@@ -1092,6 +534,444 @@ static uint8_t theory_atom_definition_type_to_lean(clingo_ast_theory_atom_defini
       return 2;
     case clingo_ast_theory_atom_definition_type_directive:
       return 3;
+    default:
+      return 0;
+  }
+}
+
+static clingo_ast_type_t lean_to_ast_type(uint8_t cidx) {
+  switch (cidx) {
+    case 0:
+      return clingo_ast_type_id;
+    case 1:
+      return clingo_ast_type_variable;
+    case 2:
+      return clingo_ast_type_symbolic_term;
+    case 3:
+      return clingo_ast_type_unary_operation;
+    case 4:
+      return clingo_ast_type_binary_operation;
+    case 5:
+      return clingo_ast_type_interval;
+    case 6:
+      return clingo_ast_type_function;
+    case 7:
+      return clingo_ast_type_pool;
+    case 8:
+      return clingo_ast_type_boolean_constant;
+    case 9:
+      return clingo_ast_type_symbolic_atom;
+    case 10:
+      return clingo_ast_type_comparison;
+    case 11:
+      return clingo_ast_type_guard;
+    case 12:
+      return clingo_ast_type_conditional_literal;
+    case 13:
+      return clingo_ast_type_aggregate;
+    case 14:
+      return clingo_ast_type_body_aggregate_element;
+    case 15:
+      return clingo_ast_type_body_aggregate;
+    case 16:
+      return clingo_ast_type_head_aggregate_element;
+    case 17:
+      return clingo_ast_type_head_aggregate;
+    case 18:
+      return clingo_ast_type_disjunction;
+    case 19:
+      return clingo_ast_type_theory_sequence;
+    case 20:
+      return clingo_ast_type_theory_function;
+    case 21:
+      return clingo_ast_type_theory_unparsed_term_element;
+    case 22:
+      return clingo_ast_type_theory_unparsed_term;
+    case 23:
+      return clingo_ast_type_theory_guard;
+    case 24:
+      return clingo_ast_type_theory_atom_element;
+    case 25:
+      return clingo_ast_type_theory_atom;
+    case 26:
+      return clingo_ast_type_literal;
+    case 27:
+      return clingo_ast_type_theory_operator_definition;
+    case 28:
+      return clingo_ast_type_theory_term_definition;
+    case 29:
+      return clingo_ast_type_theory_guard_definition;
+    case 30:
+      return clingo_ast_type_theory_atom_definition;
+    case 31:
+      return clingo_ast_type_rule;
+    case 32:
+      return clingo_ast_type_definition;
+    case 33:
+      return clingo_ast_type_show_signature;
+    case 34:
+      return clingo_ast_type_show_term;
+    case 35:
+      return clingo_ast_type_minimize;
+    case 36:
+      return clingo_ast_type_script;
+    case 37:
+      return clingo_ast_type_program;
+    case 38:
+      return clingo_ast_type_external;
+    case 39:
+      return clingo_ast_type_edge;
+    case 40:
+      return clingo_ast_type_heuristic;
+    case 41:
+      return clingo_ast_type_project_atom;
+    case 42:
+      return clingo_ast_type_project_signature;
+    case 43:
+      return clingo_ast_type_defined;
+    case 44:
+      return clingo_ast_type_theory_definition;
+    case 45:
+      return clingo_ast_type_comment;
+    default:
+      return (clingo_ast_type_t)0;
+  }
+}
+
+static uint8_t ast_type_to_lean(clingo_ast_type_t v) {
+  switch (v) {
+    case clingo_ast_type_id:
+      return 0;
+    case clingo_ast_type_variable:
+      return 1;
+    case clingo_ast_type_symbolic_term:
+      return 2;
+    case clingo_ast_type_unary_operation:
+      return 3;
+    case clingo_ast_type_binary_operation:
+      return 4;
+    case clingo_ast_type_interval:
+      return 5;
+    case clingo_ast_type_function:
+      return 6;
+    case clingo_ast_type_pool:
+      return 7;
+    case clingo_ast_type_boolean_constant:
+      return 8;
+    case clingo_ast_type_symbolic_atom:
+      return 9;
+    case clingo_ast_type_comparison:
+      return 10;
+    case clingo_ast_type_guard:
+      return 11;
+    case clingo_ast_type_conditional_literal:
+      return 12;
+    case clingo_ast_type_aggregate:
+      return 13;
+    case clingo_ast_type_body_aggregate_element:
+      return 14;
+    case clingo_ast_type_body_aggregate:
+      return 15;
+    case clingo_ast_type_head_aggregate_element:
+      return 16;
+    case clingo_ast_type_head_aggregate:
+      return 17;
+    case clingo_ast_type_disjunction:
+      return 18;
+    case clingo_ast_type_theory_sequence:
+      return 19;
+    case clingo_ast_type_theory_function:
+      return 20;
+    case clingo_ast_type_theory_unparsed_term_element:
+      return 21;
+    case clingo_ast_type_theory_unparsed_term:
+      return 22;
+    case clingo_ast_type_theory_guard:
+      return 23;
+    case clingo_ast_type_theory_atom_element:
+      return 24;
+    case clingo_ast_type_theory_atom:
+      return 25;
+    case clingo_ast_type_literal:
+      return 26;
+    case clingo_ast_type_theory_operator_definition:
+      return 27;
+    case clingo_ast_type_theory_term_definition:
+      return 28;
+    case clingo_ast_type_theory_guard_definition:
+      return 29;
+    case clingo_ast_type_theory_atom_definition:
+      return 30;
+    case clingo_ast_type_rule:
+      return 31;
+    case clingo_ast_type_definition:
+      return 32;
+    case clingo_ast_type_show_signature:
+      return 33;
+    case clingo_ast_type_show_term:
+      return 34;
+    case clingo_ast_type_minimize:
+      return 35;
+    case clingo_ast_type_script:
+      return 36;
+    case clingo_ast_type_program:
+      return 37;
+    case clingo_ast_type_external:
+      return 38;
+    case clingo_ast_type_edge:
+      return 39;
+    case clingo_ast_type_heuristic:
+      return 40;
+    case clingo_ast_type_project_atom:
+      return 41;
+    case clingo_ast_type_project_signature:
+      return 42;
+    case clingo_ast_type_defined:
+      return 43;
+    case clingo_ast_type_theory_definition:
+      return 44;
+    case clingo_ast_type_comment:
+      return 45;
+    default:
+      return 0;
+  }
+}
+
+static clingo_ast_attribute_type_t lean_to_ast_attribute_type(uint8_t cidx) {
+  switch (cidx) {
+    case 0:
+      return clingo_ast_attribute_type_number;
+    case 1:
+      return clingo_ast_attribute_type_symbol;
+    case 2:
+      return clingo_ast_attribute_type_location;
+    case 3:
+      return clingo_ast_attribute_type_string;
+    case 4:
+      return clingo_ast_attribute_type_ast;
+    case 5:
+      return clingo_ast_attribute_type_optional_ast;
+    case 6:
+      return clingo_ast_attribute_type_string_array;
+    case 7:
+      return clingo_ast_attribute_type_ast_array;
+    default:
+      return (clingo_ast_attribute_type_t)0;
+  }
+}
+
+static uint8_t ast_attribute_type_to_lean(clingo_ast_attribute_type_t v) {
+  switch (v) {
+    case clingo_ast_attribute_type_number:
+      return 0;
+    case clingo_ast_attribute_type_symbol:
+      return 1;
+    case clingo_ast_attribute_type_location:
+      return 2;
+    case clingo_ast_attribute_type_string:
+      return 3;
+    case clingo_ast_attribute_type_ast:
+      return 4;
+    case clingo_ast_attribute_type_optional_ast:
+      return 5;
+    case clingo_ast_attribute_type_string_array:
+      return 6;
+    case clingo_ast_attribute_type_ast_array:
+      return 7;
+    default:
+      return 0;
+  }
+}
+
+static clingo_ast_attribute_t lean_to_ast_attribute(uint8_t cidx) {
+  switch (cidx) {
+    case 0:
+      return clingo_ast_attribute_argument;
+    case 1:
+      return clingo_ast_attribute_arguments;
+    case 2:
+      return clingo_ast_attribute_arity;
+    case 3:
+      return clingo_ast_attribute_atom;
+    case 4:
+      return clingo_ast_attribute_atoms;
+    case 5:
+      return clingo_ast_attribute_atom_type;
+    case 6:
+      return clingo_ast_attribute_bias;
+    case 7:
+      return clingo_ast_attribute_body;
+    case 8:
+      return clingo_ast_attribute_code;
+    case 9:
+      return clingo_ast_attribute_coefficient;
+    case 10:
+      return clingo_ast_attribute_comparison;
+    case 11:
+      return clingo_ast_attribute_condition;
+    case 12:
+      return clingo_ast_attribute_elements;
+    case 13:
+      return clingo_ast_attribute_external;
+    case 14:
+      return clingo_ast_attribute_external_type;
+    case 15:
+      return clingo_ast_attribute_function;
+    case 16:
+      return clingo_ast_attribute_guard;
+    case 17:
+      return clingo_ast_attribute_guards;
+    case 18:
+      return clingo_ast_attribute_head;
+    case 19:
+      return clingo_ast_attribute_is_default;
+    case 20:
+      return clingo_ast_attribute_left;
+    case 21:
+      return clingo_ast_attribute_left_guard;
+    case 22:
+      return clingo_ast_attribute_literal;
+    case 23:
+      return clingo_ast_attribute_location;
+    case 24:
+      return clingo_ast_attribute_modifier;
+    case 25:
+      return clingo_ast_attribute_name;
+    case 26:
+      return clingo_ast_attribute_node_u;
+    case 27:
+      return clingo_ast_attribute_node_v;
+    case 28:
+      return clingo_ast_attribute_operator_name;
+    case 29:
+      return clingo_ast_attribute_operator_type;
+    case 30:
+      return clingo_ast_attribute_operators;
+    case 31:
+      return clingo_ast_attribute_parameters;
+    case 32:
+      return clingo_ast_attribute_positive;
+    case 33:
+      return clingo_ast_attribute_priority;
+    case 34:
+      return clingo_ast_attribute_right;
+    case 35:
+      return clingo_ast_attribute_right_guard;
+    case 36:
+      return clingo_ast_attribute_sequence_type;
+    case 37:
+      return clingo_ast_attribute_sign;
+    case 38:
+      return clingo_ast_attribute_symbol;
+    case 39:
+      return clingo_ast_attribute_term;
+    case 40:
+      return clingo_ast_attribute_terms;
+    case 41:
+      return clingo_ast_attribute_value;
+    case 42:
+      return clingo_ast_attribute_variable;
+    case 43:
+      return clingo_ast_attribute_weight;
+    case 44:
+      return clingo_ast_attribute_comment_type;
+    default:
+      return (clingo_ast_attribute_t)0;
+  }
+}
+
+static uint8_t ast_attribute_to_lean(clingo_ast_attribute_t v) {
+  switch (v) {
+    case clingo_ast_attribute_argument:
+      return 0;
+    case clingo_ast_attribute_arguments:
+      return 1;
+    case clingo_ast_attribute_arity:
+      return 2;
+    case clingo_ast_attribute_atom:
+      return 3;
+    case clingo_ast_attribute_atoms:
+      return 4;
+    case clingo_ast_attribute_atom_type:
+      return 5;
+    case clingo_ast_attribute_bias:
+      return 6;
+    case clingo_ast_attribute_body:
+      return 7;
+    case clingo_ast_attribute_code:
+      return 8;
+    case clingo_ast_attribute_coefficient:
+      return 9;
+    case clingo_ast_attribute_comparison:
+      return 10;
+    case clingo_ast_attribute_condition:
+      return 11;
+    case clingo_ast_attribute_elements:
+      return 12;
+    case clingo_ast_attribute_external:
+      return 13;
+    case clingo_ast_attribute_external_type:
+      return 14;
+    case clingo_ast_attribute_function:
+      return 15;
+    case clingo_ast_attribute_guard:
+      return 16;
+    case clingo_ast_attribute_guards:
+      return 17;
+    case clingo_ast_attribute_head:
+      return 18;
+    case clingo_ast_attribute_is_default:
+      return 19;
+    case clingo_ast_attribute_left:
+      return 20;
+    case clingo_ast_attribute_left_guard:
+      return 21;
+    case clingo_ast_attribute_literal:
+      return 22;
+    case clingo_ast_attribute_location:
+      return 23;
+    case clingo_ast_attribute_modifier:
+      return 24;
+    case clingo_ast_attribute_name:
+      return 25;
+    case clingo_ast_attribute_node_u:
+      return 26;
+    case clingo_ast_attribute_node_v:
+      return 27;
+    case clingo_ast_attribute_operator_name:
+      return 28;
+    case clingo_ast_attribute_operator_type:
+      return 29;
+    case clingo_ast_attribute_operators:
+      return 30;
+    case clingo_ast_attribute_parameters:
+      return 31;
+    case clingo_ast_attribute_positive:
+      return 32;
+    case clingo_ast_attribute_priority:
+      return 33;
+    case clingo_ast_attribute_right:
+      return 34;
+    case clingo_ast_attribute_right_guard:
+      return 35;
+    case clingo_ast_attribute_sequence_type:
+      return 36;
+    case clingo_ast_attribute_sign:
+      return 37;
+    case clingo_ast_attribute_symbol:
+      return 38;
+    case clingo_ast_attribute_term:
+      return 39;
+    case clingo_ast_attribute_terms:
+      return 40;
+    case clingo_ast_attribute_value:
+      return 41;
+    case clingo_ast_attribute_variable:
+      return 42;
+    case clingo_ast_attribute_weight:
+      return 43;
+    case clingo_ast_attribute_comment_type:
+      return 44;
     default:
       return 0;
   }
@@ -1318,6 +1198,1260 @@ lean_external_class * get_assignment_class(void) {
   return g_assignment_class;
 }
 
+static void finalize_ast_node(void * ptr) {
+  clingo_ast_release((clingo_ast_t *)ptr);
+}
+
+static lean_external_class * g_ast_node_class = NULL;
+
+static pthread_once_t g_ast_node_once = PTHREAD_ONCE_INIT;
+
+static void init_ast_node_class(void) {
+  g_ast_node_class = lean_register_external_class(&finalize_ast_node, &noop_foreach);
+}
+
+lean_external_class * get_ast_node_class(void) {
+  pthread_once(&g_ast_node_once, init_ast_node_class);
+  return g_ast_node_class;
+}
+
+LEAN_EXPORT lean_obj_res lean_build_id(b_lean_obj_arg location, b_lean_obj_arg name, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_id, &_ast, &location_c, name_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_variable(b_lean_obj_arg location, b_lean_obj_arg name, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_variable, &_ast, &location_c, name_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_symbolic_term(b_lean_obj_arg location, uint64_t symbol, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_symbolic_term, &_ast, &location_c, (clingo_symbol_t)symbol)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_unary_operation(b_lean_obj_arg location, uint8_t op, b_lean_obj_arg argument, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  int op_v = (int)lean_to_unary_operator(op);
+  clingo_ast_t *argument_c = (clingo_ast_t *)lean_get_external_data(argument);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_unary_operation, &_ast, &location_c, op_v, argument_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_binary_operation(b_lean_obj_arg location, uint8_t op, b_lean_obj_arg left, b_lean_obj_arg right, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  int op_v = (int)lean_to_binary_operator(op);
+  clingo_ast_t *left_c = (clingo_ast_t *)lean_get_external_data(left);
+  clingo_ast_t *right_c = (clingo_ast_t *)lean_get_external_data(right);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_binary_operation, &_ast, &location_c, op_v, left_c, right_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_interval(b_lean_obj_arg location, b_lean_obj_arg left, b_lean_obj_arg right, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *left_c = (clingo_ast_t *)lean_get_external_data(left);
+  clingo_ast_t *right_c = (clingo_ast_t *)lean_get_external_data(right);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_interval, &_ast, &location_c, left_c, right_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_function(b_lean_obj_arg location, b_lean_obj_arg name, b_lean_obj_arg arguments, int32_t external, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  size_t arguments_size = lean_array_size(arguments);
+  clingo_ast_t **arguments_buf = (clingo_ast_t **)malloc(arguments_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < arguments_size; _i++) {
+    arguments_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(arguments, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_function, &_ast, &location_c, name_c, arguments_buf, arguments_size, (int)external)) {
+  free(arguments_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(arguments_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_pool(b_lean_obj_arg location, b_lean_obj_arg arguments, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  size_t arguments_size = lean_array_size(arguments);
+  clingo_ast_t **arguments_buf = (clingo_ast_t **)malloc(arguments_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < arguments_size; _i++) {
+    arguments_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(arguments, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_pool, &_ast, &location_c, arguments_buf, arguments_size)) {
+  free(arguments_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(arguments_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_boolean_constant(int32_t value, lean_obj_arg _unit) {
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_boolean_constant, &_ast, (int)value)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_symbolic_atom(b_lean_obj_arg symbol, lean_obj_arg _unit) {
+  clingo_ast_t *symbol_c = (clingo_ast_t *)lean_get_external_data(symbol);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_symbolic_atom, &_ast, symbol_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_comparison(b_lean_obj_arg term, b_lean_obj_arg guards, lean_obj_arg _unit) {
+  clingo_ast_t *term_c = (clingo_ast_t *)lean_get_external_data(term);
+  size_t guards_size = lean_array_size(guards);
+  clingo_ast_t **guards_buf = (clingo_ast_t **)malloc(guards_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < guards_size; _i++) {
+    guards_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(guards, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_comparison, &_ast, term_c, guards_buf, guards_size)) {
+  free(guards_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(guards_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_guard(uint8_t comparison, b_lean_obj_arg term, lean_obj_arg _unit) {
+  int comparison_v = (int)lean_to_comparison_operator(comparison);
+  clingo_ast_t *term_c = (clingo_ast_t *)lean_get_external_data(term);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_guard, &_ast, comparison_v, term_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_literal(b_lean_obj_arg location, uint8_t sign, b_lean_obj_arg atom, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  int sign_v = (int)lean_to_sign(sign);
+  clingo_ast_t *atom_c = (clingo_ast_t *)lean_get_external_data(atom);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_literal, &_ast, &location_c, sign_v, atom_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_conditional_literal(b_lean_obj_arg location, b_lean_obj_arg literal, b_lean_obj_arg condition, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *literal_c = (clingo_ast_t *)lean_get_external_data(literal);
+  size_t condition_size = lean_array_size(condition);
+  clingo_ast_t **condition_buf = (clingo_ast_t **)malloc(condition_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < condition_size; _i++) {
+    condition_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(condition, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_conditional_literal, &_ast, &location_c, literal_c, condition_buf, condition_size)) {
+  free(condition_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(condition_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_aggregate(b_lean_obj_arg location, b_lean_obj_arg leftGuard, b_lean_obj_arg elements, b_lean_obj_arg rightGuard, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *leftGuard_c = lean_obj_tag(leftGuard) == 0 ? NULL : (clingo_ast_t *)lean_get_external_data(lean_ctor_get(leftGuard, 0));
+  size_t elements_size = lean_array_size(elements);
+  clingo_ast_t **elements_buf = (clingo_ast_t **)malloc(elements_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < elements_size; _i++) {
+    elements_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(elements, _i));
+  }
+  clingo_ast_t *rightGuard_c = lean_obj_tag(rightGuard) == 0 ? NULL : (clingo_ast_t *)lean_get_external_data(lean_ctor_get(rightGuard, 0));
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_aggregate, &_ast, &location_c, leftGuard_c, elements_buf, elements_size, rightGuard_c)) {
+  free(elements_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(elements_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_body_aggregate_element(b_lean_obj_arg terms, b_lean_obj_arg condition, lean_obj_arg _unit) {
+  size_t terms_size = lean_array_size(terms);
+  clingo_ast_t **terms_buf = (clingo_ast_t **)malloc(terms_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < terms_size; _i++) {
+    terms_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(terms, _i));
+  }
+  size_t condition_size = lean_array_size(condition);
+  clingo_ast_t **condition_buf = (clingo_ast_t **)malloc(condition_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < condition_size; _i++) {
+    condition_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(condition, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_body_aggregate_element, &_ast, terms_buf, terms_size, condition_buf, condition_size)) {
+  free(terms_buf);
+  free(condition_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(terms_buf);
+  free(condition_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_body_aggregate(b_lean_obj_arg location, b_lean_obj_arg leftGuard, uint8_t function, b_lean_obj_arg elements, b_lean_obj_arg rightGuard, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *leftGuard_c = lean_obj_tag(leftGuard) == 0 ? NULL : (clingo_ast_t *)lean_get_external_data(lean_ctor_get(leftGuard, 0));
+  int function_v = (int)lean_to_aggregate_function(function);
+  size_t elements_size = lean_array_size(elements);
+  clingo_ast_t **elements_buf = (clingo_ast_t **)malloc(elements_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < elements_size; _i++) {
+    elements_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(elements, _i));
+  }
+  clingo_ast_t *rightGuard_c = lean_obj_tag(rightGuard) == 0 ? NULL : (clingo_ast_t *)lean_get_external_data(lean_ctor_get(rightGuard, 0));
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_body_aggregate, &_ast, &location_c, leftGuard_c, function_v, elements_buf, elements_size, rightGuard_c)) {
+  free(elements_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(elements_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_head_aggregate_element(b_lean_obj_arg terms, b_lean_obj_arg condition, lean_obj_arg _unit) {
+  size_t terms_size = lean_array_size(terms);
+  clingo_ast_t **terms_buf = (clingo_ast_t **)malloc(terms_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < terms_size; _i++) {
+    terms_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(terms, _i));
+  }
+  clingo_ast_t *condition_c = (clingo_ast_t *)lean_get_external_data(condition);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_head_aggregate_element, &_ast, terms_buf, terms_size, condition_c)) {
+  free(terms_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(terms_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_head_aggregate(b_lean_obj_arg location, b_lean_obj_arg leftGuard, uint8_t function, b_lean_obj_arg elements, b_lean_obj_arg rightGuard, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *leftGuard_c = lean_obj_tag(leftGuard) == 0 ? NULL : (clingo_ast_t *)lean_get_external_data(lean_ctor_get(leftGuard, 0));
+  int function_v = (int)lean_to_aggregate_function(function);
+  size_t elements_size = lean_array_size(elements);
+  clingo_ast_t **elements_buf = (clingo_ast_t **)malloc(elements_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < elements_size; _i++) {
+    elements_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(elements, _i));
+  }
+  clingo_ast_t *rightGuard_c = lean_obj_tag(rightGuard) == 0 ? NULL : (clingo_ast_t *)lean_get_external_data(lean_ctor_get(rightGuard, 0));
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_head_aggregate, &_ast, &location_c, leftGuard_c, function_v, elements_buf, elements_size, rightGuard_c)) {
+  free(elements_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(elements_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_disjunction(b_lean_obj_arg location, b_lean_obj_arg elements, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  size_t elements_size = lean_array_size(elements);
+  clingo_ast_t **elements_buf = (clingo_ast_t **)malloc(elements_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < elements_size; _i++) {
+    elements_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(elements, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_disjunction, &_ast, &location_c, elements_buf, elements_size)) {
+  free(elements_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(elements_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_sequence(b_lean_obj_arg location, uint8_t sequenceType, b_lean_obj_arg terms, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  int sequenceType_v = (int)lean_to_theory_sequence_type(sequenceType);
+  size_t terms_size = lean_array_size(terms);
+  clingo_ast_t **terms_buf = (clingo_ast_t **)malloc(terms_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < terms_size; _i++) {
+    terms_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(terms, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_sequence, &_ast, &location_c, sequenceType_v, terms_buf, terms_size)) {
+  free(terms_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(terms_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_function(b_lean_obj_arg location, b_lean_obj_arg name, b_lean_obj_arg arguments, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  size_t arguments_size = lean_array_size(arguments);
+  clingo_ast_t **arguments_buf = (clingo_ast_t **)malloc(arguments_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < arguments_size; _i++) {
+    arguments_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(arguments, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_function, &_ast, &location_c, name_c, arguments_buf, arguments_size)) {
+  free(arguments_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(arguments_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_unparsed_term_element(b_lean_obj_arg operators, b_lean_obj_arg term, lean_obj_arg _unit) {
+  size_t operators_size = lean_array_size(operators);
+  char const **operators_buf = (char const **)malloc(operators_size * sizeof(char const *));
+  for (size_t _i = 0; _i < operators_size; _i++) {
+    operators_buf[_i] = lean_string_cstr(lean_array_get_core(operators, _i));
+  }
+  clingo_ast_t *term_c = (clingo_ast_t *)lean_get_external_data(term);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_unparsed_term_element, &_ast, operators_buf, operators_size, term_c)) {
+  free(operators_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(operators_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_unparsed_term(b_lean_obj_arg location, b_lean_obj_arg elements, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  size_t elements_size = lean_array_size(elements);
+  clingo_ast_t **elements_buf = (clingo_ast_t **)malloc(elements_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < elements_size; _i++) {
+    elements_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(elements, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_unparsed_term, &_ast, &location_c, elements_buf, elements_size)) {
+  free(elements_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(elements_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_guard(b_lean_obj_arg operatorName, b_lean_obj_arg term, lean_obj_arg _unit) {
+  const char *operatorName_c = lean_string_cstr(operatorName);
+  clingo_ast_t *term_c = (clingo_ast_t *)lean_get_external_data(term);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_guard, &_ast, operatorName_c, term_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_atom_element(b_lean_obj_arg terms, b_lean_obj_arg condition, lean_obj_arg _unit) {
+  size_t terms_size = lean_array_size(terms);
+  clingo_ast_t **terms_buf = (clingo_ast_t **)malloc(terms_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < terms_size; _i++) {
+    terms_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(terms, _i));
+  }
+  size_t condition_size = lean_array_size(condition);
+  clingo_ast_t **condition_buf = (clingo_ast_t **)malloc(condition_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < condition_size; _i++) {
+    condition_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(condition, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_atom_element, &_ast, terms_buf, terms_size, condition_buf, condition_size)) {
+  free(terms_buf);
+  free(condition_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(terms_buf);
+  free(condition_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_atom(b_lean_obj_arg location, b_lean_obj_arg term, b_lean_obj_arg elements, b_lean_obj_arg guard, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *term_c = (clingo_ast_t *)lean_get_external_data(term);
+  size_t elements_size = lean_array_size(elements);
+  clingo_ast_t **elements_buf = (clingo_ast_t **)malloc(elements_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < elements_size; _i++) {
+    elements_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(elements, _i));
+  }
+  clingo_ast_t *guard_c = lean_obj_tag(guard) == 0 ? NULL : (clingo_ast_t *)lean_get_external_data(lean_ctor_get(guard, 0));
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_atom, &_ast, &location_c, term_c, elements_buf, elements_size, guard_c)) {
+  free(elements_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(elements_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_rule(b_lean_obj_arg location, b_lean_obj_arg head, b_lean_obj_arg body, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *head_c = (clingo_ast_t *)lean_get_external_data(head);
+  size_t body_size = lean_array_size(body);
+  clingo_ast_t **body_buf = (clingo_ast_t **)malloc(body_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < body_size; _i++) {
+    body_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(body, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_rule, &_ast, &location_c, head_c, body_buf, body_size)) {
+  free(body_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(body_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_definition(b_lean_obj_arg location, b_lean_obj_arg name, b_lean_obj_arg value, int32_t isDefault, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  clingo_ast_t *value_c = (clingo_ast_t *)lean_get_external_data(value);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_definition, &_ast, &location_c, name_c, value_c, (int)isDefault)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_show_signature(b_lean_obj_arg location, b_lean_obj_arg name, int32_t arity, int32_t positive, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_show_signature, &_ast, &location_c, name_c, (int)arity, (int)positive)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_show_term(b_lean_obj_arg location, b_lean_obj_arg term, b_lean_obj_arg body, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *term_c = (clingo_ast_t *)lean_get_external_data(term);
+  size_t body_size = lean_array_size(body);
+  clingo_ast_t **body_buf = (clingo_ast_t **)malloc(body_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < body_size; _i++) {
+    body_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(body, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_show_term, &_ast, &location_c, term_c, body_buf, body_size)) {
+  free(body_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(body_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_minimize(b_lean_obj_arg location, b_lean_obj_arg weight, b_lean_obj_arg priority, b_lean_obj_arg terms, b_lean_obj_arg body, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *weight_c = (clingo_ast_t *)lean_get_external_data(weight);
+  clingo_ast_t *priority_c = (clingo_ast_t *)lean_get_external_data(priority);
+  size_t terms_size = lean_array_size(terms);
+  clingo_ast_t **terms_buf = (clingo_ast_t **)malloc(terms_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < terms_size; _i++) {
+    terms_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(terms, _i));
+  }
+  size_t body_size = lean_array_size(body);
+  clingo_ast_t **body_buf = (clingo_ast_t **)malloc(body_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < body_size; _i++) {
+    body_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(body, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_minimize, &_ast, &location_c, weight_c, priority_c, terms_buf, terms_size, body_buf, body_size)) {
+  free(terms_buf);
+  free(body_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(terms_buf);
+  free(body_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_script(b_lean_obj_arg location, b_lean_obj_arg name, b_lean_obj_arg code, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  const char *code_c = lean_string_cstr(code);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_script, &_ast, &location_c, name_c, code_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_program(b_lean_obj_arg location, b_lean_obj_arg name, b_lean_obj_arg parameters, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  size_t parameters_size = lean_array_size(parameters);
+  clingo_ast_t **parameters_buf = (clingo_ast_t **)malloc(parameters_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < parameters_size; _i++) {
+    parameters_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(parameters, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_program, &_ast, &location_c, name_c, parameters_buf, parameters_size)) {
+  free(parameters_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(parameters_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_external(b_lean_obj_arg location, b_lean_obj_arg atom, b_lean_obj_arg body, b_lean_obj_arg externalType, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *atom_c = (clingo_ast_t *)lean_get_external_data(atom);
+  size_t body_size = lean_array_size(body);
+  clingo_ast_t **body_buf = (clingo_ast_t **)malloc(body_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < body_size; _i++) {
+    body_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(body, _i));
+  }
+  clingo_ast_t *externalType_c = (clingo_ast_t *)lean_get_external_data(externalType);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_external, &_ast, &location_c, atom_c, body_buf, body_size, externalType_c)) {
+  free(body_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(body_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_edge(b_lean_obj_arg location, b_lean_obj_arg nodeU, b_lean_obj_arg nodeV, b_lean_obj_arg body, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *nodeU_c = (clingo_ast_t *)lean_get_external_data(nodeU);
+  clingo_ast_t *nodeV_c = (clingo_ast_t *)lean_get_external_data(nodeV);
+  size_t body_size = lean_array_size(body);
+  clingo_ast_t **body_buf = (clingo_ast_t **)malloc(body_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < body_size; _i++) {
+    body_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(body, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_edge, &_ast, &location_c, nodeU_c, nodeV_c, body_buf, body_size)) {
+  free(body_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(body_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_heuristic(b_lean_obj_arg location, b_lean_obj_arg atom, b_lean_obj_arg body, b_lean_obj_arg bias, b_lean_obj_arg priority, b_lean_obj_arg modifier, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *atom_c = (clingo_ast_t *)lean_get_external_data(atom);
+  size_t body_size = lean_array_size(body);
+  clingo_ast_t **body_buf = (clingo_ast_t **)malloc(body_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < body_size; _i++) {
+    body_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(body, _i));
+  }
+  clingo_ast_t *bias_c = (clingo_ast_t *)lean_get_external_data(bias);
+  clingo_ast_t *priority_c = (clingo_ast_t *)lean_get_external_data(priority);
+  clingo_ast_t *modifier_c = (clingo_ast_t *)lean_get_external_data(modifier);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_heuristic, &_ast, &location_c, atom_c, body_buf, body_size, bias_c, priority_c, modifier_c)) {
+  free(body_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(body_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_project_atom(b_lean_obj_arg location, b_lean_obj_arg atom, b_lean_obj_arg body, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  clingo_ast_t *atom_c = (clingo_ast_t *)lean_get_external_data(atom);
+  size_t body_size = lean_array_size(body);
+  clingo_ast_t **body_buf = (clingo_ast_t **)malloc(body_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < body_size; _i++) {
+    body_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(body, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_project_atom, &_ast, &location_c, atom_c, body_buf, body_size)) {
+  free(body_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(body_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_project_signature(b_lean_obj_arg location, b_lean_obj_arg name, int32_t arity, int32_t positive, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_project_signature, &_ast, &location_c, name_c, (int)arity, (int)positive)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_defined(b_lean_obj_arg location, b_lean_obj_arg name, int32_t arity, int32_t positive, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_defined, &_ast, &location_c, name_c, (int)arity, (int)positive)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_operator_definition(b_lean_obj_arg location, b_lean_obj_arg name, int32_t priority, uint8_t operatorType, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  int operatorType_v = (int)lean_to_theory_operator_type(operatorType);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_operator_definition, &_ast, &location_c, name_c, (int)priority, operatorType_v)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_term_definition(b_lean_obj_arg location, b_lean_obj_arg name, b_lean_obj_arg operators, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  size_t operators_size = lean_array_size(operators);
+  clingo_ast_t **operators_buf = (clingo_ast_t **)malloc(operators_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < operators_size; _i++) {
+    operators_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(operators, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_term_definition, &_ast, &location_c, name_c, operators_buf, operators_size)) {
+  free(operators_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(operators_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_guard_definition(b_lean_obj_arg operators, b_lean_obj_arg term, lean_obj_arg _unit) {
+  size_t operators_size = lean_array_size(operators);
+  char const **operators_buf = (char const **)malloc(operators_size * sizeof(char const *));
+  for (size_t _i = 0; _i < operators_size; _i++) {
+    operators_buf[_i] = lean_string_cstr(lean_array_get_core(operators, _i));
+  }
+  const char *term_c = lean_string_cstr(term);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_guard_definition, &_ast, operators_buf, operators_size, term_c)) {
+  free(operators_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(operators_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_atom_definition(b_lean_obj_arg location, uint8_t atomType, b_lean_obj_arg name, int32_t arity, b_lean_obj_arg term, b_lean_obj_arg guard, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  int atomType_v = (int)lean_to_theory_atom_definition_type(atomType);
+  const char *name_c = lean_string_cstr(name);
+  const char *term_c = lean_string_cstr(term);
+  clingo_ast_t *guard_c = lean_obj_tag(guard) == 0 ? NULL : (clingo_ast_t *)lean_get_external_data(lean_ctor_get(guard, 0));
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_atom_definition, &_ast, &location_c, atomType_v, name_c, (int)arity, term_c, guard_c)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_theory_definition(b_lean_obj_arg location, b_lean_obj_arg name, b_lean_obj_arg terms, b_lean_obj_arg atoms, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *name_c = lean_string_cstr(name);
+  size_t terms_size = lean_array_size(terms);
+  clingo_ast_t **terms_buf = (clingo_ast_t **)malloc(terms_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < terms_size; _i++) {
+    terms_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(terms, _i));
+  }
+  size_t atoms_size = lean_array_size(atoms);
+  clingo_ast_t **atoms_buf = (clingo_ast_t **)malloc(atoms_size * sizeof(clingo_ast_t *));
+  for (size_t _i = 0; _i < atoms_size; _i++) {
+    atoms_buf[_i] = (clingo_ast_t *)lean_get_external_data(lean_array_get_core(atoms, _i));
+  }
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_theory_definition, &_ast, &location_c, name_c, terms_buf, terms_size, atoms_buf, atoms_size)) {
+  free(terms_buf);
+  free(atoms_buf);
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+  free(terms_buf);
+  free(atoms_buf);
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
+LEAN_EXPORT lean_obj_res lean_build_comment(b_lean_obj_arg location, b_lean_obj_arg value, int32_t commentType, lean_obj_arg _unit) {
+  clingo_location_t location_c = lean_to_location(location);
+  const char *value_c = lean_string_cstr(value);
+  clingo_ast_t *_ast;
+  if (clingo_ast_build(clingo_ast_type_comment, &_ast, &location_c, value_c, (int)commentType)) {
+    lean_object *_ext = lean_alloc_external(get_ast_node_class(), _ast);
+    lean_object *ok = lean_alloc_ctor(1, 1, 0);
+    lean_ctor_set(ok, 0, _ext);
+    return lean_io_result_mk_ok(ok);
+  } else {
+    lean_object *code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object *pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object *err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+}
+
 static void free_location(clingo_location_t * p) {
   if (p->begin_file) {
     free((void *)p->begin_file);
@@ -1338,730 +2472,6 @@ static void free_part(clingo_part_t * p) {
   if (p->params) {
     free((void *)p->params);
   }
-}
-
-static void free_ast_id(clingo_ast_id_t * p) {
-  free_location(&p->location);
-  if (p->id) {
-    free((void *)p->id);
-  }
-}
-
-static void free_ast_comparison(clingo_ast_comparison_t * p) {
-  free_ast_term(&p->left);
-  free_ast_term(&p->right);
-}
-
-static void free_ast_unary_operation(clingo_ast_unary_operation_t * p) {
-  free_ast_term(&p->argument);
-}
-
-static void free_ast_binary_operation(clingo_ast_binary_operation_t * p) {
-  free_ast_term(&p->left);
-  free_ast_term(&p->right);
-}
-
-static void free_ast_interval(clingo_ast_interval_t * p) {
-  free_ast_term(&p->left);
-  free_ast_term(&p->right);
-}
-
-static void free_ast_function(clingo_ast_function_t * p) {
-  if (p->name) {
-    free((void *)p->name);
-  }
-  if (p->arguments) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_ast_term((clingo_ast_term_t *)&p->arguments[_i]);
-    }
-    free((void *)p->arguments);
-  }
-}
-
-static void free_ast_pool(clingo_ast_pool_t * p) {
-  if (p->arguments) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_ast_term((clingo_ast_term_t *)&p->arguments[_i]);
-    }
-    free((void *)p->arguments);
-  }
-}
-
-static void free_csp_product_term(clingo_ast_csp_product_term_t * p) {
-  free_location(&p->location);
-  free_ast_term(&p->coefficient);
-  if (p->variable) {
-    free_ast_term((clingo_ast_term_t *)p->variable);
-    free((void *)p->variable);
-  }
-}
-
-static void free_csp_sum_term(clingo_ast_csp_sum_term_t * p) {
-  free_location(&p->location);
-  if (p->terms) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_csp_product_term((clingo_ast_csp_product_term_t *)&p->terms[_i]);
-    }
-    free((void *)p->terms);
-  }
-}
-
-static void free_csp_guard(clingo_ast_csp_guard_t * p) {
-  free_csp_sum_term(&p->term);
-}
-
-static void free_csp_literal(clingo_ast_csp_literal_t * p) {
-  free_csp_sum_term(&p->term);
-  if (p->guards) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_csp_guard((clingo_ast_csp_guard_t *)&p->guards[_i]);
-    }
-    free((void *)p->guards);
-  }
-}
-
-static void free_aggregate_guard(clingo_ast_aggregate_guard_t * p) {
-  free_ast_term(&p->term);
-}
-
-static void free_conditional_literal(clingo_ast_conditional_literal_t * p) {
-  free_ast_literal(&p->literal);
-  if (p->condition) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_ast_literal((clingo_ast_literal_t *)&p->condition[_i]);
-    }
-    free((void *)p->condition);
-  }
-}
-
-static void free_ast_aggregate(clingo_ast_aggregate_t * p) {
-  if (p->elements) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_conditional_literal((clingo_ast_conditional_literal_t *)&p->elements[_i]);
-    }
-    free((void *)p->elements);
-  }
-  if (p->left_guard) {
-    free_aggregate_guard((clingo_ast_aggregate_guard_t *)p->left_guard);
-    free((void *)p->left_guard);
-  }
-  if (p->right_guard) {
-    free_aggregate_guard((clingo_ast_aggregate_guard_t *)p->right_guard);
-    free((void *)p->right_guard);
-  }
-}
-
-static void free_body_aggregate_element(clingo_ast_body_aggregate_element_t * p) {
-  if (p->tuple) {
-    for (size_t _i = 0; _i < p->tuple_size; _i++) {
-      free_ast_term((clingo_ast_term_t *)&p->tuple[_i]);
-    }
-    free((void *)p->tuple);
-  }
-  if (p->condition) {
-    for (size_t _i = 0; _i < p->condition_size; _i++) {
-      free_ast_literal((clingo_ast_literal_t *)&p->condition[_i]);
-    }
-    free((void *)p->condition);
-  }
-}
-
-static void free_body_aggregate(clingo_ast_body_aggregate_t * p) {
-  if (p->elements) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_body_aggregate_element((clingo_ast_body_aggregate_element_t *)&p->elements[_i]);
-    }
-    free((void *)p->elements);
-  }
-  if (p->left_guard) {
-    free_aggregate_guard((clingo_ast_aggregate_guard_t *)p->left_guard);
-    free((void *)p->left_guard);
-  }
-  if (p->right_guard) {
-    free_aggregate_guard((clingo_ast_aggregate_guard_t *)p->right_guard);
-    free((void *)p->right_guard);
-  }
-}
-
-static void free_head_aggregate_element(clingo_ast_head_aggregate_element_t * p) {
-  if (p->tuple) {
-    for (size_t _i = 0; _i < p->tuple_size; _i++) {
-      free_ast_term((clingo_ast_term_t *)&p->tuple[_i]);
-    }
-    free((void *)p->tuple);
-  }
-  free_conditional_literal(&p->conditional_literal);
-}
-
-static void free_head_aggregate(clingo_ast_head_aggregate_t * p) {
-  if (p->elements) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_head_aggregate_element((clingo_ast_head_aggregate_element_t *)&p->elements[_i]);
-    }
-    free((void *)p->elements);
-  }
-  if (p->left_guard) {
-    free_aggregate_guard((clingo_ast_aggregate_guard_t *)p->left_guard);
-    free((void *)p->left_guard);
-  }
-  if (p->right_guard) {
-    free_aggregate_guard((clingo_ast_aggregate_guard_t *)p->right_guard);
-    free((void *)p->right_guard);
-  }
-}
-
-static void free_disjunction(clingo_ast_disjunction_t * p) {
-  if (p->elements) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_conditional_literal((clingo_ast_conditional_literal_t *)&p->elements[_i]);
-    }
-    free((void *)p->elements);
-  }
-}
-
-static void free_disjoint_element(clingo_ast_disjoint_element_t * p) {
-  free_location(&p->location);
-  if (p->tuple) {
-    for (size_t _i = 0; _i < p->tuple_size; _i++) {
-      free_ast_term((clingo_ast_term_t *)&p->tuple[_i]);
-    }
-    free((void *)p->tuple);
-  }
-  free_csp_sum_term(&p->term);
-  if (p->condition) {
-    for (size_t _i = 0; _i < p->condition_size; _i++) {
-      free_ast_literal((clingo_ast_literal_t *)&p->condition[_i]);
-    }
-    free((void *)p->condition);
-  }
-}
-
-static void free_ast_disjoint(clingo_ast_disjoint_t * p) {
-  if (p->elements) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_disjoint_element((clingo_ast_disjoint_element_t *)&p->elements[_i]);
-    }
-    free((void *)p->elements);
-  }
-}
-
-static void free_theory_term_array(clingo_ast_theory_term_array_t * p) {
-  if (p->terms) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_ast_theory_term((clingo_ast_theory_term_t *)&p->terms[_i]);
-    }
-    free((void *)p->terms);
-  }
-}
-
-static void free_theory_function(clingo_ast_theory_function_t * p) {
-  if (p->name) {
-    free((void *)p->name);
-  }
-  if (p->arguments) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_ast_theory_term((clingo_ast_theory_term_t *)&p->arguments[_i]);
-    }
-    free((void *)p->arguments);
-  }
-}
-
-static void free_theory_unparsed_term_element(clingo_ast_theory_unparsed_term_element_t * p) {
-  free_ast_theory_term(&p->term);
-}
-
-static void free_theory_unparsed_term(clingo_ast_theory_unparsed_term_t * p) {
-  if (p->elements) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_theory_unparsed_term_element((clingo_ast_theory_unparsed_term_element_t *)&p->elements[_i]);
-    }
-    free((void *)p->elements);
-  }
-}
-
-static void free_theory_atom_element(clingo_ast_theory_atom_element_t * p) {
-  if (p->tuple) {
-    for (size_t _i = 0; _i < p->tuple_size; _i++) {
-      free_ast_theory_term((clingo_ast_theory_term_t *)&p->tuple[_i]);
-    }
-    free((void *)p->tuple);
-  }
-  if (p->condition) {
-    for (size_t _i = 0; _i < p->condition_size; _i++) {
-      free_ast_literal((clingo_ast_literal_t *)&p->condition[_i]);
-    }
-    free((void *)p->condition);
-  }
-}
-
-static void free_theory_guard(clingo_ast_theory_guard_t * p) {
-  if (p->operator_name) {
-    free((void *)p->operator_name);
-  }
-  free_ast_theory_term(&p->term);
-}
-
-static void free_theory_atom(clingo_ast_theory_atom_t * p) {
-  free_ast_term(&p->term);
-  if (p->elements) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_theory_atom_element((clingo_ast_theory_atom_element_t *)&p->elements[_i]);
-    }
-    free((void *)p->elements);
-  }
-  if (p->guard) {
-    free_theory_guard((clingo_ast_theory_guard_t *)p->guard);
-    free((void *)p->guard);
-  }
-}
-
-static void free_theory_operator_definition(clingo_ast_theory_operator_definition_t * p) {
-  free_location(&p->location);
-  if (p->name) {
-    free((void *)p->name);
-  }
-}
-
-static void free_theory_term_definition(clingo_ast_theory_term_definition_t * p) {
-  free_location(&p->location);
-  if (p->name) {
-    free((void *)p->name);
-  }
-  if (p->operators) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_theory_operator_definition((clingo_ast_theory_operator_definition_t *)&p->operators[_i]);
-    }
-    free((void *)p->operators);
-  }
-}
-
-static void free_theory_guard_definition(clingo_ast_theory_guard_definition_t * p) {
-  if (p->term) {
-    free((void *)p->term);
-  }
-}
-
-static void free_theory_atom_definition(clingo_ast_theory_atom_definition_t * p) {
-  free_location(&p->location);
-  if (p->name) {
-    free((void *)p->name);
-  }
-  if (p->elements) {
-    free((void *)p->elements);
-  }
-  if (p->guard) {
-    free_theory_guard_definition((clingo_ast_theory_guard_definition_t *)p->guard);
-    free((void *)p->guard);
-  }
-}
-
-static void free_theory_definition(clingo_ast_theory_definition_t * p) {
-  if (p->name) {
-    free((void *)p->name);
-  }
-  if (p->terms) {
-    for (size_t _i = 0; _i < p->terms_size; _i++) {
-      free_theory_term_definition((clingo_ast_theory_term_definition_t *)&p->terms[_i]);
-    }
-    free((void *)p->terms);
-  }
-  if (p->atoms) {
-    for (size_t _i = 0; _i < p->atoms_size; _i++) {
-      free_theory_atom_definition((clingo_ast_theory_atom_definition_t *)&p->atoms[_i]);
-    }
-    free((void *)p->atoms);
-  }
-}
-
-static void free_ast_rule(clingo_ast_rule_t * p) {
-  free_head_literal(&p->head);
-  if (p->body) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_body_literal((clingo_ast_body_literal_t *)&p->body[_i]);
-    }
-    free((void *)p->body);
-  }
-}
-
-static void free_ast_definition(clingo_ast_definition_t * p) {
-  if (p->name) {
-    free((void *)p->name);
-  }
-  free_ast_term(&p->value);
-}
-
-static void free_ast_show_signature(clingo_ast_show_signature_t * p) {
-
-}
-
-static void free_ast_show_term(clingo_ast_show_term_t * p) {
-  free_ast_term(&p->term);
-  if (p->body) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_body_literal((clingo_ast_body_literal_t *)&p->body[_i]);
-    }
-    free((void *)p->body);
-  }
-}
-
-static void free_ast_defined(clingo_ast_defined_t * p) {
-
-}
-
-static void free_ast_minimize(clingo_ast_minimize_t * p) {
-  free_ast_term(&p->weight);
-  free_ast_term(&p->priority);
-  if (p->tuple) {
-    for (size_t _i = 0; _i < p->tuple_size; _i++) {
-      free_ast_term((clingo_ast_term_t *)&p->tuple[_i]);
-    }
-    free((void *)p->tuple);
-  }
-  if (p->body) {
-    for (size_t _i = 0; _i < p->body_size; _i++) {
-      free_body_literal((clingo_ast_body_literal_t *)&p->body[_i]);
-    }
-    free((void *)p->body);
-  }
-}
-
-static void free_ast_script(clingo_ast_script_t * p) {
-  if (p->code) {
-    free((void *)p->code);
-  }
-}
-
-static void free_ast_program(clingo_ast_program_t * p) {
-  if (p->name) {
-    free((void *)p->name);
-  }
-  if (p->parameters) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_ast_id((clingo_ast_id_t *)&p->parameters[_i]);
-    }
-    free((void *)p->parameters);
-  }
-}
-
-static void free_ast_external(clingo_ast_external_t * p) {
-  free_ast_term(&p->atom);
-  if (p->body) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_body_literal((clingo_ast_body_literal_t *)&p->body[_i]);
-    }
-    free((void *)p->body);
-  }
-  free_ast_term(&p->type);
-}
-
-static void free_ast_edge(clingo_ast_edge_t * p) {
-  free_ast_term(&p->u);
-  free_ast_term(&p->v);
-  if (p->body) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_body_literal((clingo_ast_body_literal_t *)&p->body[_i]);
-    }
-    free((void *)p->body);
-  }
-}
-
-static void free_ast_heuristic(clingo_ast_heuristic_t * p) {
-  free_ast_term(&p->atom);
-  if (p->body) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_body_literal((clingo_ast_body_literal_t *)&p->body[_i]);
-    }
-    free((void *)p->body);
-  }
-  free_ast_term(&p->bias);
-  free_ast_term(&p->priority);
-  free_ast_term(&p->modifier);
-}
-
-static void free_ast_project(clingo_ast_project_t * p) {
-  free_ast_term(&p->atom);
-  if (p->body) {
-    for (size_t _i = 0; _i < p->size; _i++) {
-      free_body_literal((clingo_ast_body_literal_t *)&p->body[_i]);
-    }
-    free((void *)p->body);
-  }
-}
-
-static void free_ast_term(clingo_ast_term_t * p) {
-  switch (p->type) {
-    case clingo_ast_term_type_unary_operation:
-      if (p->unary_operation) {
-        free_ast_unary_operation((clingo_ast_unary_operation_t *)p->unary_operation);
-        free((void *)p->unary_operation);
-      }
-      break;
-    case clingo_ast_term_type_binary_operation:
-      if (p->binary_operation) {
-        free_ast_binary_operation((clingo_ast_binary_operation_t *)p->binary_operation);
-        free((void *)p->binary_operation);
-      }
-      break;
-    case clingo_ast_term_type_interval:
-      if (p->interval) {
-        free_ast_interval((clingo_ast_interval_t *)p->interval);
-        free((void *)p->interval);
-      }
-      break;
-    case clingo_ast_term_type_function:
-      if (p->function) {
-        free_ast_function((clingo_ast_function_t *)p->function);
-        free((void *)p->function);
-      }
-      break;
-    case clingo_ast_term_type_external_function:
-      if (p->external_function) {
-        free_ast_function((clingo_ast_function_t *)p->external_function);
-        free((void *)p->external_function);
-      }
-      break;
-    case clingo_ast_term_type_pool:
-      if (p->pool) {
-        free_ast_pool((clingo_ast_pool_t *)p->pool);
-        free((void *)p->pool);
-      }
-      break;
-    default:
-      break;
-  }
-  free_location(&p->location);
-}
-
-static void free_ast_literal(clingo_ast_literal_t * p) {
-  switch (p->type) {
-    case clingo_ast_literal_type_symbolic:
-      if (p->symbol) {
-        free_ast_term((clingo_ast_term_t *)p->symbol);
-        free((void *)p->symbol);
-      }
-      break;
-    case clingo_ast_literal_type_comparison:
-      if (p->comparison) {
-        free_ast_comparison((clingo_ast_comparison_t *)p->comparison);
-        free((void *)p->comparison);
-      }
-      break;
-    case clingo_ast_literal_type_csp:
-      if (p->csp_literal) {
-        free_csp_literal((clingo_ast_csp_literal_t *)p->csp_literal);
-        free((void *)p->csp_literal);
-      }
-      break;
-    default:
-      break;
-  }
-  free_location(&p->location);
-}
-
-static void free_head_literal(clingo_ast_head_literal_t * p) {
-  switch (p->type) {
-    case clingo_ast_head_literal_type_literal:
-      if (p->literal) {
-        free_ast_literal((clingo_ast_literal_t *)p->literal);
-        free((void *)p->literal);
-      }
-      break;
-    case clingo_ast_head_literal_type_disjunction:
-      if (p->disjunction) {
-        free_disjunction((clingo_ast_disjunction_t *)p->disjunction);
-        free((void *)p->disjunction);
-      }
-      break;
-    case clingo_ast_head_literal_type_aggregate:
-      if (p->aggregate) {
-        free_ast_aggregate((clingo_ast_aggregate_t *)p->aggregate);
-        free((void *)p->aggregate);
-      }
-      break;
-    case clingo_ast_head_literal_type_head_aggregate:
-      if (p->head_aggregate) {
-        free_head_aggregate((clingo_ast_head_aggregate_t *)p->head_aggregate);
-        free((void *)p->head_aggregate);
-      }
-      break;
-    case clingo_ast_head_literal_type_theory_atom:
-      if (p->theory_atom) {
-        free_theory_atom((clingo_ast_theory_atom_t *)p->theory_atom);
-        free((void *)p->theory_atom);
-      }
-      break;
-    default:
-      break;
-  }
-  free_location(&p->location);
-}
-
-static void free_body_literal(clingo_ast_body_literal_t * p) {
-  switch (p->type) {
-    case clingo_ast_body_literal_type_literal:
-      if (p->literal) {
-        free_ast_literal((clingo_ast_literal_t *)p->literal);
-        free((void *)p->literal);
-      }
-      break;
-    case clingo_ast_body_literal_type_conditional:
-      if (p->conditional) {
-        free_conditional_literal((clingo_ast_conditional_literal_t *)p->conditional);
-        free((void *)p->conditional);
-      }
-      break;
-    case clingo_ast_body_literal_type_aggregate:
-      if (p->aggregate) {
-        free_ast_aggregate((clingo_ast_aggregate_t *)p->aggregate);
-        free((void *)p->aggregate);
-      }
-      break;
-    case clingo_ast_body_literal_type_body_aggregate:
-      if (p->body_aggregate) {
-        free_body_aggregate((clingo_ast_body_aggregate_t *)p->body_aggregate);
-        free((void *)p->body_aggregate);
-      }
-      break;
-    case clingo_ast_body_literal_type_theory_atom:
-      if (p->theory_atom) {
-        free_theory_atom((clingo_ast_theory_atom_t *)p->theory_atom);
-        free((void *)p->theory_atom);
-      }
-      break;
-    case clingo_ast_body_literal_type_disjoint:
-      if (p->disjoint) {
-        free_ast_disjoint((clingo_ast_disjoint_t *)p->disjoint);
-        free((void *)p->disjoint);
-      }
-      break;
-    default:
-      break;
-  }
-  free_location(&p->location);
-}
-
-static void free_ast_theory_term(clingo_ast_theory_term_t * p) {
-  switch (p->type) {
-    case clingo_ast_theory_term_type_tuple:
-      if (p->tuple) {
-        free_theory_term_array((clingo_ast_theory_term_array_t *)p->tuple);
-        free((void *)p->tuple);
-      }
-      break;
-    case clingo_ast_theory_term_type_list:
-      if (p->list) {
-        free_theory_term_array((clingo_ast_theory_term_array_t *)p->list);
-        free((void *)p->list);
-      }
-      break;
-    case clingo_ast_theory_term_type_set:
-      if (p->set) {
-        free_theory_term_array((clingo_ast_theory_term_array_t *)p->set);
-        free((void *)p->set);
-      }
-      break;
-    case clingo_ast_theory_term_type_function:
-      if (p->function) {
-        free_theory_function((clingo_ast_theory_function_t *)p->function);
-        free((void *)p->function);
-      }
-      break;
-    case clingo_ast_theory_term_type_unparsed_term:
-      if (p->unparsed_term) {
-        free_theory_unparsed_term((clingo_ast_theory_unparsed_term_t *)p->unparsed_term);
-        free((void *)p->unparsed_term);
-      }
-      break;
-    default:
-      break;
-  }
-  free_location(&p->location);
-}
-
-static void free_ast_statement(clingo_ast_statement_t * p) {
-  switch (p->type) {
-    case clingo_ast_statement_type_rule:
-      if (p->rule) {
-        free_ast_rule((clingo_ast_rule_t *)p->rule);
-        free((void *)p->rule);
-      }
-      break;
-    case clingo_ast_statement_type_const:
-      if (p->definition) {
-        free_ast_definition((clingo_ast_definition_t *)p->definition);
-        free((void *)p->definition);
-      }
-      break;
-    case clingo_ast_statement_type_show_signature:
-      if (p->show_signature) {
-        free_ast_show_signature((clingo_ast_show_signature_t *)p->show_signature);
-        free((void *)p->show_signature);
-      }
-      break;
-    case clingo_ast_statement_type_show_term:
-      if (p->show_term) {
-        free_ast_show_term((clingo_ast_show_term_t *)p->show_term);
-        free((void *)p->show_term);
-      }
-      break;
-    case clingo_ast_statement_type_minimize:
-      if (p->minimize) {
-        free_ast_minimize((clingo_ast_minimize_t *)p->minimize);
-        free((void *)p->minimize);
-      }
-      break;
-    case clingo_ast_statement_type_script:
-      if (p->script) {
-        free_ast_script((clingo_ast_script_t *)p->script);
-        free((void *)p->script);
-      }
-      break;
-    case clingo_ast_statement_type_program:
-      if (p->program) {
-        free_ast_program((clingo_ast_program_t *)p->program);
-        free((void *)p->program);
-      }
-      break;
-    case clingo_ast_statement_type_external:
-      if (p->external) {
-        free_ast_external((clingo_ast_external_t *)p->external);
-        free((void *)p->external);
-      }
-      break;
-    case clingo_ast_statement_type_edge:
-      if (p->edge) {
-        free_ast_edge((clingo_ast_edge_t *)p->edge);
-        free((void *)p->edge);
-      }
-      break;
-    case clingo_ast_statement_type_heuristic:
-      if (p->heuristic) {
-        free_ast_heuristic((clingo_ast_heuristic_t *)p->heuristic);
-        free((void *)p->heuristic);
-      }
-      break;
-    case clingo_ast_statement_type_project_atom:
-      if (p->project_atom) {
-        free_ast_project((clingo_ast_project_t *)p->project_atom);
-        free((void *)p->project_atom);
-      }
-      break;
-    case clingo_ast_statement_type_theory_definition:
-      if (p->theory_definition) {
-        free_theory_definition((clingo_ast_theory_definition_t *)p->theory_definition);
-        free((void *)p->theory_definition);
-      }
-      break;
-    case clingo_ast_statement_type_defined:
-      if (p->defined) {
-        free_ast_defined((clingo_ast_defined_t *)p->defined);
-        free((void *)p->defined);
-      }
-      break;
-    default:
-      break;
-  }
-  free_location(&p->location);
 }
 
 lean_object* solve_result_to_lean(clingo_solve_result_bitset_t v) {
@@ -2095,12 +2505,12 @@ clingo_solve_result_bitset_t lean_to_solve_result(b_lean_obj_arg obj) {
 lean_object* show_type_to_lean(clingo_show_type_bitset_t v) {
   lean_object * obj = lean_alloc_ctor(0, 0, 6);
   uint8_t * sp = lean_ctor_scalar_cptr(obj);
-  sp[0] = (v & 1) != 0;
-  sp[1] = (v & 2) != 0;
-  sp[2] = (v & 4) != 0;
-  sp[3] = (v & 8) != 0;
-  sp[4] = (v & 15) != 0;
-  sp[5] = (v & 16) != 0;
+  sp[0] = (v & 2) != 0;
+  sp[1] = (v & 4) != 0;
+  sp[2] = (v & 8) != 0;
+  sp[3] = (v & 16) != 0;
+  sp[4] = (v & 31) != 0;
+  sp[5] = (v & 32) != 0;
   return obj;
 }
 
@@ -2108,22 +2518,22 @@ clingo_show_type_bitset_t lean_to_show_type(b_lean_obj_arg obj) {
   uint8_t * sp = lean_ctor_scalar_cptr(obj);
   clingo_show_type_bitset_t v = 0;
   if (sp[0]) {
-    v |= 1;
-  }
-  if (sp[1]) {
     v |= 2;
   }
-  if (sp[2]) {
+  if (sp[1]) {
     v |= 4;
   }
-  if (sp[3]) {
+  if (sp[2]) {
     v |= 8;
   }
+  if (sp[3]) {
+    v |= 16;
+  }
   if (sp[4]) {
-    v |= 15;
+    v |= 31;
   }
   if (sp[5]) {
-    v |= 16;
+    v |= 32;
   }
   return v;
 }
@@ -2212,1811 +2622,6 @@ clingo_part_t lean_to_part(b_lean_obj_arg obj) {
   return v;
 }
 
-lean_object* ast_id_to_lean(clingo_ast_id_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, lean_mk_string(v.id == NULL ? "" : v.id));
-  return o;
-}
-
-clingo_ast_id_t lean_to_ast_id(b_lean_obj_arg obj) {
-  clingo_ast_id_t v;
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  v.id = strdup(lean_string_cstr(lean_ctor_get(obj, 1)));
-  return v;
-}
-
-lean_object* ast_comparison_to_lean(clingo_ast_comparison_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, lean_box(comparison_operator_to_lean(v.comparison)));
-  lean_ctor_set(o, 1, ast_term_to_lean(v.left));
-  lean_ctor_set(o, 2, ast_term_to_lean(v.right));
-  return o;
-}
-
-clingo_ast_comparison_t lean_to_ast_comparison(b_lean_obj_arg obj) {
-  clingo_ast_comparison_t v;
-  v.comparison = lean_to_comparison_operator((uint8_t)lean_unbox(lean_ctor_get(obj, 0)));
-  v.left = lean_to_ast_term(lean_ctor_get(obj, 1));
-  v.right = lean_to_ast_term(lean_ctor_get(obj, 2));
-  return v;
-}
-
-lean_object* ast_unary_operation_to_lean(clingo_ast_unary_operation_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, lean_box(unary_operator_to_lean(v.unary_operator)));
-  lean_ctor_set(o, 1, ast_term_to_lean(v.argument));
-  return o;
-}
-
-clingo_ast_unary_operation_t lean_to_ast_unary_operation(b_lean_obj_arg obj) {
-  clingo_ast_unary_operation_t v;
-  v.unary_operator = lean_to_unary_operator((uint8_t)lean_unbox(lean_ctor_get(obj, 0)));
-  v.argument = lean_to_ast_term(lean_ctor_get(obj, 1));
-  return v;
-}
-
-lean_object* ast_binary_operation_to_lean(clingo_ast_binary_operation_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, lean_box(binary_operator_to_lean(v.binary_operator)));
-  lean_ctor_set(o, 1, ast_term_to_lean(v.left));
-  lean_ctor_set(o, 2, ast_term_to_lean(v.right));
-  return o;
-}
-
-clingo_ast_binary_operation_t lean_to_ast_binary_operation(b_lean_obj_arg obj) {
-  clingo_ast_binary_operation_t v;
-  v.binary_operator = lean_to_binary_operator((uint8_t)lean_unbox(lean_ctor_get(obj, 0)));
-  v.left = lean_to_ast_term(lean_ctor_get(obj, 1));
-  v.right = lean_to_ast_term(lean_ctor_get(obj, 2));
-  return v;
-}
-
-lean_object* ast_interval_to_lean(clingo_ast_interval_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, ast_term_to_lean(v.left));
-  lean_ctor_set(o, 1, ast_term_to_lean(v.right));
-  return o;
-}
-
-clingo_ast_interval_t lean_to_ast_interval(b_lean_obj_arg obj) {
-  clingo_ast_interval_t v;
-  v.left = lean_to_ast_term(lean_ctor_get(obj, 0));
-  v.right = lean_to_ast_term(lean_ctor_get(obj, 1));
-  return v;
-}
-
-lean_object* ast_function_to_lean(clingo_ast_function_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, lean_mk_string(v.name == NULL ? "" : v.name));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, ast_term_to_lean(v.arguments[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_function_t lean_to_ast_function(b_lean_obj_arg obj) {
-  clingo_ast_function_t v;
-  v.name = strdup(lean_string_cstr(lean_ctor_get(obj, 0)));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.arguments = (clingo_ast_term_t *)malloc(sizeof(clingo_ast_term_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_term_t *)v.arguments)[_i] = lean_to_ast_term(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* ast_pool_to_lean(clingo_ast_pool_t v) {
-  lean_object* o = lean_alloc_ctor(0, 1, 0);
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, ast_term_to_lean(v.arguments[_i]));
-    }
-    lean_ctor_set(o, 0, _arr);
-  }
-  return o;
-}
-
-clingo_ast_pool_t lean_to_ast_pool(b_lean_obj_arg obj) {
-  clingo_ast_pool_t v;
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 0));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.arguments = (clingo_ast_term_t *)malloc(sizeof(clingo_ast_term_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_term_t *)v.arguments)[_i] = lean_to_ast_term(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* csp_product_term_to_lean(clingo_ast_csp_product_term_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, ast_term_to_lean(v.coefficient));
-  lean_ctor_set(o, 2, ast_term_to_lean(*v.variable));
-  return o;
-}
-
-clingo_ast_csp_product_term_t lean_to_csp_product_term(b_lean_obj_arg obj) {
-  clingo_ast_csp_product_term_t v;
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  v.coefficient = lean_to_ast_term(lean_ctor_get(obj, 1));
-  v.variable = (clingo_ast_term_t *)malloc(sizeof(clingo_ast_term_t));
-  *(clingo_ast_term_t *)v.variable = lean_to_ast_term(lean_ctor_get(obj, 2));
-  return v;
-}
-
-lean_object* csp_sum_term_to_lean(clingo_ast_csp_sum_term_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, csp_product_term_to_lean(v.terms[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_csp_sum_term_t lean_to_csp_sum_term(b_lean_obj_arg obj) {
-  clingo_ast_csp_sum_term_t v;
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_csp_product_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.terms = (clingo_ast_csp_product_term_t *)malloc(sizeof(clingo_ast_csp_product_term_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_csp_product_term_t *)v.terms)[_i] = lean_to_csp_product_term(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* csp_guard_to_lean(clingo_ast_csp_guard_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, lean_box(comparison_operator_to_lean(v.comparison)));
-  lean_ctor_set(o, 1, csp_sum_term_to_lean(v.term));
-  return o;
-}
-
-clingo_ast_csp_guard_t lean_to_csp_guard(b_lean_obj_arg obj) {
-  clingo_ast_csp_guard_t v;
-  v.comparison = lean_to_comparison_operator((uint8_t)lean_unbox(lean_ctor_get(obj, 0)));
-  v.term = lean_to_csp_sum_term(lean_ctor_get(obj, 1));
-  return v;
-}
-
-lean_object* csp_literal_to_lean(clingo_ast_csp_literal_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, csp_sum_term_to_lean(v.term));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, csp_guard_to_lean(v.guards[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_csp_literal_t lean_to_csp_literal(b_lean_obj_arg obj) {
-  clingo_ast_csp_literal_t v;
-  v.term = lean_to_csp_sum_term(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_csp_guard_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.guards = (clingo_ast_csp_guard_t *)malloc(sizeof(clingo_ast_csp_guard_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_csp_guard_t *)v.guards)[_i] = lean_to_csp_guard(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* aggregate_guard_to_lean(clingo_ast_aggregate_guard_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, lean_box(comparison_operator_to_lean(v.comparison)));
-  lean_ctor_set(o, 1, ast_term_to_lean(v.term));
-  return o;
-}
-
-clingo_ast_aggregate_guard_t lean_to_aggregate_guard(b_lean_obj_arg obj) {
-  clingo_ast_aggregate_guard_t v;
-  v.comparison = lean_to_comparison_operator((uint8_t)lean_unbox(lean_ctor_get(obj, 0)));
-  v.term = lean_to_ast_term(lean_ctor_get(obj, 1));
-  return v;
-}
-
-lean_object* conditional_literal_to_lean(clingo_ast_conditional_literal_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, ast_literal_to_lean(v.literal));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, ast_literal_to_lean(v.condition[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_conditional_literal_t lean_to_conditional_literal(b_lean_obj_arg obj) {
-  clingo_ast_conditional_literal_t v;
-  v.literal = lean_to_ast_literal(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.condition = (clingo_ast_literal_t *)malloc(sizeof(clingo_ast_literal_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_literal_t *)v.condition)[_i] = lean_to_ast_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* ast_aggregate_to_lean(clingo_ast_aggregate_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, conditional_literal_to_lean(v.elements[_i]));
-    }
-    lean_ctor_set(o, 0, _arr);
-  }
-  lean_ctor_set(o, 1, aggregate_guard_to_lean(*v.left_guard));
-  lean_ctor_set(o, 2, aggregate_guard_to_lean(*v.right_guard));
-  return o;
-}
-
-clingo_ast_aggregate_t lean_to_ast_aggregate(b_lean_obj_arg obj) {
-  clingo_ast_aggregate_t v;
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 0));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_conditional_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.elements = (clingo_ast_conditional_literal_t *)malloc(sizeof(clingo_ast_conditional_literal_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_conditional_literal_t *)v.elements)[_i] = lean_to_conditional_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  v.left_guard = (clingo_ast_aggregate_guard_t *)malloc(sizeof(clingo_ast_aggregate_guard_t));
-  *(clingo_ast_aggregate_guard_t *)v.left_guard = lean_to_aggregate_guard(lean_ctor_get(obj, 1));
-  v.right_guard = (clingo_ast_aggregate_guard_t *)malloc(sizeof(clingo_ast_aggregate_guard_t));
-  *(clingo_ast_aggregate_guard_t *)v.right_guard = lean_to_aggregate_guard(lean_ctor_get(obj, 2));
-  return v;
-}
-
-lean_object* body_aggregate_element_to_lean(clingo_ast_body_aggregate_element_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.tuple_size));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      _arr = lean_array_push(_arr, ast_term_to_lean(v.tuple[_i]));
-    }
-    lean_ctor_set(o, 0, _arr);
-  }
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.condition_size));
-    for (size_t _i = 0; _i < v.condition_size; _i++) {
-      _arr = lean_array_push(_arr, ast_literal_to_lean(v.condition[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_body_aggregate_element_t lean_to_body_aggregate_element(b_lean_obj_arg obj) {
-  clingo_ast_body_aggregate_element_t v;
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 0));
-    v.tuple_size = _arr_obj->m_size;
-    if (v.tuple_size > SIZE_MAX / sizeof(clingo_ast_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.tuple = (clingo_ast_term_t *)malloc(sizeof(clingo_ast_term_t) * (v.tuple_size > 0 ? v.tuple_size : 1));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      ((clingo_ast_term_t *)v.tuple)[_i] = lean_to_ast_term(_arr_obj->m_data[_i]);
-    }
-  }
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.condition_size = _arr_obj->m_size;
-    if (v.condition_size > SIZE_MAX / sizeof(clingo_ast_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.condition = (clingo_ast_literal_t *)malloc(sizeof(clingo_ast_literal_t) * (v.condition_size > 0 ? v.condition_size : 1));
-    for (size_t _i = 0; _i < v.condition_size; _i++) {
-      ((clingo_ast_literal_t *)v.condition)[_i] = lean_to_ast_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* body_aggregate_to_lean(clingo_ast_body_aggregate_t v) {
-  lean_object* o = lean_alloc_ctor(0, 4, 0);
-  lean_ctor_set(o, 0, lean_box(aggregate_function_to_lean(v.function)));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, body_aggregate_element_to_lean(v.elements[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  lean_ctor_set(o, 2, aggregate_guard_to_lean(*v.left_guard));
-  lean_ctor_set(o, 3, aggregate_guard_to_lean(*v.right_guard));
-  return o;
-}
-
-clingo_ast_body_aggregate_t lean_to_body_aggregate(b_lean_obj_arg obj) {
-  clingo_ast_body_aggregate_t v;
-  v.function = lean_to_aggregate_function((uint8_t)lean_unbox(lean_ctor_get(obj, 0)));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_body_aggregate_element_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.elements = (clingo_ast_body_aggregate_element_t *)malloc(sizeof(clingo_ast_body_aggregate_element_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_body_aggregate_element_t *)v.elements)[_i] = lean_to_body_aggregate_element(_arr_obj->m_data[_i]);
-    }
-  }
-  v.left_guard = (clingo_ast_aggregate_guard_t *)malloc(sizeof(clingo_ast_aggregate_guard_t));
-  *(clingo_ast_aggregate_guard_t *)v.left_guard = lean_to_aggregate_guard(lean_ctor_get(obj, 2));
-  v.right_guard = (clingo_ast_aggregate_guard_t *)malloc(sizeof(clingo_ast_aggregate_guard_t));
-  *(clingo_ast_aggregate_guard_t *)v.right_guard = lean_to_aggregate_guard(lean_ctor_get(obj, 3));
-  return v;
-}
-
-lean_object* head_aggregate_element_to_lean(clingo_ast_head_aggregate_element_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.tuple_size));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      _arr = lean_array_push(_arr, ast_term_to_lean(v.tuple[_i]));
-    }
-    lean_ctor_set(o, 0, _arr);
-  }
-  lean_ctor_set(o, 1, conditional_literal_to_lean(v.conditional_literal));
-  return o;
-}
-
-clingo_ast_head_aggregate_element_t lean_to_head_aggregate_element(b_lean_obj_arg obj) {
-  clingo_ast_head_aggregate_element_t v;
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 0));
-    v.tuple_size = _arr_obj->m_size;
-    if (v.tuple_size > SIZE_MAX / sizeof(clingo_ast_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.tuple = (clingo_ast_term_t *)malloc(sizeof(clingo_ast_term_t) * (v.tuple_size > 0 ? v.tuple_size : 1));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      ((clingo_ast_term_t *)v.tuple)[_i] = lean_to_ast_term(_arr_obj->m_data[_i]);
-    }
-  }
-  v.conditional_literal = lean_to_conditional_literal(lean_ctor_get(obj, 1));
-  return v;
-}
-
-lean_object* head_aggregate_to_lean(clingo_ast_head_aggregate_t v) {
-  lean_object* o = lean_alloc_ctor(0, 4, 0);
-  lean_ctor_set(o, 0, lean_box(aggregate_function_to_lean(v.function)));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, head_aggregate_element_to_lean(v.elements[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  lean_ctor_set(o, 2, aggregate_guard_to_lean(*v.left_guard));
-  lean_ctor_set(o, 3, aggregate_guard_to_lean(*v.right_guard));
-  return o;
-}
-
-clingo_ast_head_aggregate_t lean_to_head_aggregate(b_lean_obj_arg obj) {
-  clingo_ast_head_aggregate_t v;
-  v.function = lean_to_aggregate_function((uint8_t)lean_unbox(lean_ctor_get(obj, 0)));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_head_aggregate_element_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.elements = (clingo_ast_head_aggregate_element_t *)malloc(sizeof(clingo_ast_head_aggregate_element_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_head_aggregate_element_t *)v.elements)[_i] = lean_to_head_aggregate_element(_arr_obj->m_data[_i]);
-    }
-  }
-  v.left_guard = (clingo_ast_aggregate_guard_t *)malloc(sizeof(clingo_ast_aggregate_guard_t));
-  *(clingo_ast_aggregate_guard_t *)v.left_guard = lean_to_aggregate_guard(lean_ctor_get(obj, 2));
-  v.right_guard = (clingo_ast_aggregate_guard_t *)malloc(sizeof(clingo_ast_aggregate_guard_t));
-  *(clingo_ast_aggregate_guard_t *)v.right_guard = lean_to_aggregate_guard(lean_ctor_get(obj, 3));
-  return v;
-}
-
-lean_object* disjunction_to_lean(clingo_ast_disjunction_t v) {
-  lean_object* o = lean_alloc_ctor(0, 1, 0);
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, conditional_literal_to_lean(v.elements[_i]));
-    }
-    lean_ctor_set(o, 0, _arr);
-  }
-  return o;
-}
-
-clingo_ast_disjunction_t lean_to_disjunction(b_lean_obj_arg obj) {
-  clingo_ast_disjunction_t v;
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 0));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_conditional_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.elements = (clingo_ast_conditional_literal_t *)malloc(sizeof(clingo_ast_conditional_literal_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_conditional_literal_t *)v.elements)[_i] = lean_to_conditional_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* disjoint_element_to_lean(clingo_ast_disjoint_element_t v) {
-  lean_object* o = lean_alloc_ctor(0, 4, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.tuple_size));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      _arr = lean_array_push(_arr, ast_term_to_lean(v.tuple[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  lean_ctor_set(o, 2, csp_sum_term_to_lean(v.term));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.condition_size));
-    for (size_t _i = 0; _i < v.condition_size; _i++) {
-      _arr = lean_array_push(_arr, ast_literal_to_lean(v.condition[_i]));
-    }
-    lean_ctor_set(o, 3, _arr);
-  }
-  return o;
-}
-
-clingo_ast_disjoint_element_t lean_to_disjoint_element(b_lean_obj_arg obj) {
-  clingo_ast_disjoint_element_t v;
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.tuple_size = _arr_obj->m_size;
-    if (v.tuple_size > SIZE_MAX / sizeof(clingo_ast_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.tuple = (clingo_ast_term_t *)malloc(sizeof(clingo_ast_term_t) * (v.tuple_size > 0 ? v.tuple_size : 1));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      ((clingo_ast_term_t *)v.tuple)[_i] = lean_to_ast_term(_arr_obj->m_data[_i]);
-    }
-  }
-  v.term = lean_to_csp_sum_term(lean_ctor_get(obj, 2));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 3));
-    v.condition_size = _arr_obj->m_size;
-    if (v.condition_size > SIZE_MAX / sizeof(clingo_ast_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.condition = (clingo_ast_literal_t *)malloc(sizeof(clingo_ast_literal_t) * (v.condition_size > 0 ? v.condition_size : 1));
-    for (size_t _i = 0; _i < v.condition_size; _i++) {
-      ((clingo_ast_literal_t *)v.condition)[_i] = lean_to_ast_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* ast_disjoint_to_lean(clingo_ast_disjoint_t v) {
-  lean_object* o = lean_alloc_ctor(0, 1, 0);
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, disjoint_element_to_lean(v.elements[_i]));
-    }
-    lean_ctor_set(o, 0, _arr);
-  }
-  return o;
-}
-
-clingo_ast_disjoint_t lean_to_ast_disjoint(b_lean_obj_arg obj) {
-  clingo_ast_disjoint_t v;
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 0));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_disjoint_element_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.elements = (clingo_ast_disjoint_element_t *)malloc(sizeof(clingo_ast_disjoint_element_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_disjoint_element_t *)v.elements)[_i] = lean_to_disjoint_element(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* theory_term_array_to_lean(clingo_ast_theory_term_array_t v) {
-  lean_object* o = lean_alloc_ctor(0, 1, 0);
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, ast_theory_term_to_lean(v.terms[_i]));
-    }
-    lean_ctor_set(o, 0, _arr);
-  }
-  return o;
-}
-
-clingo_ast_theory_term_array_t lean_to_theory_term_array(b_lean_obj_arg obj) {
-  clingo_ast_theory_term_array_t v;
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 0));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_theory_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.terms = (clingo_ast_theory_term_t *)malloc(sizeof(clingo_ast_theory_term_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_theory_term_t *)v.terms)[_i] = lean_to_ast_theory_term(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* theory_function_to_lean(clingo_ast_theory_function_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, lean_mk_string(v.name == NULL ? "" : v.name));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, ast_theory_term_to_lean(v.arguments[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_theory_function_t lean_to_theory_function(b_lean_obj_arg obj) {
-  clingo_ast_theory_function_t v;
-  v.name = strdup(lean_string_cstr(lean_ctor_get(obj, 0)));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_theory_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.arguments = (clingo_ast_theory_term_t *)malloc(sizeof(clingo_ast_theory_term_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_theory_term_t *)v.arguments)[_i] = lean_to_ast_theory_term(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* theory_unparsed_term_element_to_lean(clingo_ast_theory_unparsed_term_element_t v) {
-  lean_object* o = lean_alloc_ctor(0, 1, 0);
-  lean_ctor_set(o, 0, ast_theory_term_to_lean(v.term));
-  return o;
-}
-
-clingo_ast_theory_unparsed_term_element_t lean_to_theory_unparsed_term_element(b_lean_obj_arg obj) {
-  clingo_ast_theory_unparsed_term_element_t v;
-  v.term = lean_to_ast_theory_term(lean_ctor_get(obj, 0));
-  return v;
-}
-
-lean_object* theory_unparsed_term_to_lean(clingo_ast_theory_unparsed_term_t v) {
-  lean_object* o = lean_alloc_ctor(0, 1, 0);
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, theory_unparsed_term_element_to_lean(v.elements[_i]));
-    }
-    lean_ctor_set(o, 0, _arr);
-  }
-  return o;
-}
-
-clingo_ast_theory_unparsed_term_t lean_to_theory_unparsed_term(b_lean_obj_arg obj) {
-  clingo_ast_theory_unparsed_term_t v;
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 0));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_theory_unparsed_term_element_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.elements = (clingo_ast_theory_unparsed_term_element_t *)malloc(sizeof(clingo_ast_theory_unparsed_term_element_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_theory_unparsed_term_element_t *)v.elements)[_i] = lean_to_theory_unparsed_term_element(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* theory_atom_element_to_lean(clingo_ast_theory_atom_element_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.tuple_size));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      _arr = lean_array_push(_arr, ast_theory_term_to_lean(v.tuple[_i]));
-    }
-    lean_ctor_set(o, 0, _arr);
-  }
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.condition_size));
-    for (size_t _i = 0; _i < v.condition_size; _i++) {
-      _arr = lean_array_push(_arr, ast_literal_to_lean(v.condition[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_theory_atom_element_t lean_to_theory_atom_element(b_lean_obj_arg obj) {
-  clingo_ast_theory_atom_element_t v;
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 0));
-    v.tuple_size = _arr_obj->m_size;
-    if (v.tuple_size > SIZE_MAX / sizeof(clingo_ast_theory_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.tuple = (clingo_ast_theory_term_t *)malloc(sizeof(clingo_ast_theory_term_t) * (v.tuple_size > 0 ? v.tuple_size : 1));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      ((clingo_ast_theory_term_t *)v.tuple)[_i] = lean_to_ast_theory_term(_arr_obj->m_data[_i]);
-    }
-  }
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.condition_size = _arr_obj->m_size;
-    if (v.condition_size > SIZE_MAX / sizeof(clingo_ast_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.condition = (clingo_ast_literal_t *)malloc(sizeof(clingo_ast_literal_t) * (v.condition_size > 0 ? v.condition_size : 1));
-    for (size_t _i = 0; _i < v.condition_size; _i++) {
-      ((clingo_ast_literal_t *)v.condition)[_i] = lean_to_ast_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* theory_guard_to_lean(clingo_ast_theory_guard_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, lean_mk_string(v.operator_name == NULL ? "" : v.operator_name));
-  lean_ctor_set(o, 1, ast_theory_term_to_lean(v.term));
-  return o;
-}
-
-clingo_ast_theory_guard_t lean_to_theory_guard(b_lean_obj_arg obj) {
-  clingo_ast_theory_guard_t v;
-  v.operator_name = strdup(lean_string_cstr(lean_ctor_get(obj, 0)));
-  v.term = lean_to_ast_theory_term(lean_ctor_get(obj, 1));
-  return v;
-}
-
-lean_object* theory_atom_to_lean(clingo_ast_theory_atom_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, ast_term_to_lean(v.term));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, theory_atom_element_to_lean(v.elements[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  lean_ctor_set(o, 2, theory_guard_to_lean(*v.guard));
-  return o;
-}
-
-clingo_ast_theory_atom_t lean_to_theory_atom(b_lean_obj_arg obj) {
-  clingo_ast_theory_atom_t v;
-  v.term = lean_to_ast_term(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_theory_atom_element_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.elements = (clingo_ast_theory_atom_element_t *)malloc(sizeof(clingo_ast_theory_atom_element_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_theory_atom_element_t *)v.elements)[_i] = lean_to_theory_atom_element(_arr_obj->m_data[_i]);
-    }
-  }
-  v.guard = (clingo_ast_theory_guard_t *)malloc(sizeof(clingo_ast_theory_guard_t));
-  *(clingo_ast_theory_guard_t *)v.guard = lean_to_theory_guard(lean_ctor_get(obj, 2));
-  return v;
-}
-
-lean_object* theory_operator_definition_to_lean(clingo_ast_theory_operator_definition_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 4);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, lean_mk_string(v.name == NULL ? "" : v.name));
-  lean_ctor_set(o, 2, lean_box(theory_operator_type_to_lean(v.type)));
-  lean_ctor_set_uint32(o, 24, (uint32_t)v.priority);
-  return o;
-}
-
-clingo_ast_theory_operator_definition_t lean_to_theory_operator_definition(b_lean_obj_arg obj) {
-  clingo_ast_theory_operator_definition_t v;
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  v.name = strdup(lean_string_cstr(lean_ctor_get(obj, 1)));
-  v.type = lean_to_theory_operator_type((uint8_t)lean_unbox(lean_ctor_get(obj, 2)));
-  v.priority = (uint32_t)lean_ctor_get_uint32(obj, 24);
-  return v;
-}
-
-lean_object* theory_term_definition_to_lean(clingo_ast_theory_term_definition_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, lean_mk_string(v.name == NULL ? "" : v.name));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, theory_operator_definition_to_lean(v.operators[_i]));
-    }
-    lean_ctor_set(o, 2, _arr);
-  }
-  return o;
-}
-
-clingo_ast_theory_term_definition_t lean_to_theory_term_definition(b_lean_obj_arg obj) {
-  clingo_ast_theory_term_definition_t v;
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  v.name = strdup(lean_string_cstr(lean_ctor_get(obj, 1)));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 2));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_theory_operator_definition_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.operators = (clingo_ast_theory_operator_definition_t *)malloc(sizeof(clingo_ast_theory_operator_definition_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_theory_operator_definition_t *)v.operators)[_i] = lean_to_theory_operator_definition(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* theory_guard_definition_to_lean(clingo_ast_theory_guard_definition_t v) {
-  lean_object* o = lean_alloc_ctor(0, 1, 0);
-  lean_ctor_set(o, 0, lean_mk_string(v.term == NULL ? "" : v.term));
-  return o;
-}
-
-clingo_ast_theory_guard_definition_t lean_to_theory_guard_definition(b_lean_obj_arg obj) {
-  clingo_ast_theory_guard_definition_t v;
-  v.term = strdup(lean_string_cstr(lean_ctor_get(obj, 0)));
-  return v;
-}
-
-lean_object* theory_atom_definition_to_lean(clingo_ast_theory_atom_definition_t v) {
-  lean_object* o = lean_alloc_ctor(0, 5, 4);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, lean_box(theory_atom_definition_type_to_lean(v.type)));
-  lean_ctor_set(o, 2, lean_mk_string(v.name == NULL ? "" : v.name));
-  lean_ctor_set(o, 3, lean_mk_string(v.elements == NULL ? "" : v.elements));
-  lean_ctor_set(o, 4, theory_guard_definition_to_lean(*v.guard));
-  lean_ctor_set_uint32(o, 40, (uint32_t)v.arity);
-  return o;
-}
-
-clingo_ast_theory_atom_definition_t lean_to_theory_atom_definition(b_lean_obj_arg obj) {
-  clingo_ast_theory_atom_definition_t v;
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  v.type = lean_to_theory_atom_definition_type((uint8_t)lean_unbox(lean_ctor_get(obj, 1)));
-  v.name = strdup(lean_string_cstr(lean_ctor_get(obj, 2)));
-  v.elements = strdup(lean_string_cstr(lean_ctor_get(obj, 3)));
-  v.guard = (clingo_ast_theory_guard_definition_t *)malloc(sizeof(clingo_ast_theory_guard_definition_t));
-  *(clingo_ast_theory_guard_definition_t *)v.guard = lean_to_theory_guard_definition(lean_ctor_get(obj, 4));
-  v.arity = (uint32_t)lean_ctor_get_uint32(obj, 40);
-  return v;
-}
-
-lean_object* theory_definition_to_lean(clingo_ast_theory_definition_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, lean_mk_string(v.name == NULL ? "" : v.name));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.terms_size));
-    for (size_t _i = 0; _i < v.terms_size; _i++) {
-      _arr = lean_array_push(_arr, theory_term_definition_to_lean(v.terms[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.atoms_size));
-    for (size_t _i = 0; _i < v.atoms_size; _i++) {
-      _arr = lean_array_push(_arr, theory_atom_definition_to_lean(v.atoms[_i]));
-    }
-    lean_ctor_set(o, 2, _arr);
-  }
-  return o;
-}
-
-clingo_ast_theory_definition_t lean_to_theory_definition(b_lean_obj_arg obj) {
-  clingo_ast_theory_definition_t v;
-  v.name = strdup(lean_string_cstr(lean_ctor_get(obj, 0)));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.terms_size = _arr_obj->m_size;
-    if (v.terms_size > SIZE_MAX / sizeof(clingo_ast_theory_term_definition_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.terms = (clingo_ast_theory_term_definition_t *)malloc(sizeof(clingo_ast_theory_term_definition_t) * (v.terms_size > 0 ? v.terms_size : 1));
-    for (size_t _i = 0; _i < v.terms_size; _i++) {
-      ((clingo_ast_theory_term_definition_t *)v.terms)[_i] = lean_to_theory_term_definition(_arr_obj->m_data[_i]);
-    }
-  }
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 2));
-    v.atoms_size = _arr_obj->m_size;
-    if (v.atoms_size > SIZE_MAX / sizeof(clingo_ast_theory_atom_definition_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.atoms = (clingo_ast_theory_atom_definition_t *)malloc(sizeof(clingo_ast_theory_atom_definition_t) * (v.atoms_size > 0 ? v.atoms_size : 1));
-    for (size_t _i = 0; _i < v.atoms_size; _i++) {
-      ((clingo_ast_theory_atom_definition_t *)v.atoms)[_i] = lean_to_theory_atom_definition(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* ast_rule_to_lean(clingo_ast_rule_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, head_literal_to_lean(v.head));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, body_literal_to_lean(v.body[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_rule_t lean_to_ast_rule(b_lean_obj_arg obj) {
-  clingo_ast_rule_t v;
-  v.head = lean_to_head_literal(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_body_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.body = (clingo_ast_body_literal_t *)malloc(sizeof(clingo_ast_body_literal_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_body_literal_t *)v.body)[_i] = lean_to_body_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* ast_definition_to_lean(clingo_ast_definition_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 1);
-  lean_ctor_set(o, 0, lean_mk_string(v.name == NULL ? "" : v.name));
-  lean_ctor_set(o, 1, ast_term_to_lean(v.value));
-  lean_ctor_set_uint8(o, 16, (uint8_t)v.is_default);
-  return o;
-}
-
-clingo_ast_definition_t lean_to_ast_definition(b_lean_obj_arg obj) {
-  clingo_ast_definition_t v;
-  v.name = strdup(lean_string_cstr(lean_ctor_get(obj, 0)));
-  v.value = lean_to_ast_term(lean_ctor_get(obj, 1));
-  v.is_default = (uint8_t)lean_ctor_get_uint8(obj, 16);
-  return v;
-}
-
-lean_object* ast_show_signature_to_lean(clingo_ast_show_signature_t v) {
-  lean_object* o = lean_alloc_ctor(0, 0, 9);
-  lean_ctor_set_uint64(o, 0, (uint64_t)v.signature);
-  lean_ctor_set_uint8(o, 8, (uint8_t)v.csp);
-  return o;
-}
-
-clingo_ast_show_signature_t lean_to_ast_show_signature(b_lean_obj_arg obj) {
-  clingo_ast_show_signature_t v;
-  v.signature = (uint64_t)lean_ctor_get_uint64(obj, 0);
-  v.csp = (uint8_t)lean_ctor_get_uint8(obj, 8);
-  return v;
-}
-
-lean_object* ast_show_term_to_lean(clingo_ast_show_term_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 1);
-  lean_ctor_set(o, 0, ast_term_to_lean(v.term));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, body_literal_to_lean(v.body[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  lean_ctor_set_uint8(o, 16, (uint8_t)v.csp);
-  return o;
-}
-
-clingo_ast_show_term_t lean_to_ast_show_term(b_lean_obj_arg obj) {
-  clingo_ast_show_term_t v;
-  v.term = lean_to_ast_term(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_body_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.body = (clingo_ast_body_literal_t *)malloc(sizeof(clingo_ast_body_literal_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_body_literal_t *)v.body)[_i] = lean_to_body_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  v.csp = (uint8_t)lean_ctor_get_uint8(obj, 16);
-  return v;
-}
-
-lean_object* ast_defined_to_lean(clingo_ast_defined_t v) {
-  lean_object* o = lean_alloc_ctor(0, 0, 8);
-  lean_ctor_set_uint64(o, 0, (uint64_t)v.signature);
-  return o;
-}
-
-clingo_ast_defined_t lean_to_ast_defined(b_lean_obj_arg obj) {
-  clingo_ast_defined_t v;
-  v.signature = (uint64_t)lean_ctor_get_uint64(obj, 0);
-  return v;
-}
-
-lean_object* ast_minimize_to_lean(clingo_ast_minimize_t v) {
-  lean_object* o = lean_alloc_ctor(0, 4, 0);
-  lean_ctor_set(o, 0, ast_term_to_lean(v.weight));
-  lean_ctor_set(o, 1, ast_term_to_lean(v.priority));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.tuple_size));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      _arr = lean_array_push(_arr, ast_term_to_lean(v.tuple[_i]));
-    }
-    lean_ctor_set(o, 2, _arr);
-  }
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.body_size));
-    for (size_t _i = 0; _i < v.body_size; _i++) {
-      _arr = lean_array_push(_arr, body_literal_to_lean(v.body[_i]));
-    }
-    lean_ctor_set(o, 3, _arr);
-  }
-  return o;
-}
-
-clingo_ast_minimize_t lean_to_ast_minimize(b_lean_obj_arg obj) {
-  clingo_ast_minimize_t v;
-  v.weight = lean_to_ast_term(lean_ctor_get(obj, 0));
-  v.priority = lean_to_ast_term(lean_ctor_get(obj, 1));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 2));
-    v.tuple_size = _arr_obj->m_size;
-    if (v.tuple_size > SIZE_MAX / sizeof(clingo_ast_term_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.tuple = (clingo_ast_term_t *)malloc(sizeof(clingo_ast_term_t) * (v.tuple_size > 0 ? v.tuple_size : 1));
-    for (size_t _i = 0; _i < v.tuple_size; _i++) {
-      ((clingo_ast_term_t *)v.tuple)[_i] = lean_to_ast_term(_arr_obj->m_data[_i]);
-    }
-  }
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 3));
-    v.body_size = _arr_obj->m_size;
-    if (v.body_size > SIZE_MAX / sizeof(clingo_ast_body_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.body = (clingo_ast_body_literal_t *)malloc(sizeof(clingo_ast_body_literal_t) * (v.body_size > 0 ? v.body_size : 1));
-    for (size_t _i = 0; _i < v.body_size; _i++) {
-      ((clingo_ast_body_literal_t *)v.body)[_i] = lean_to_body_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* ast_script_to_lean(clingo_ast_script_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, lean_box(script_type_to_lean(v.type)));
-  lean_ctor_set(o, 1, lean_mk_string(v.code == NULL ? "" : v.code));
-  return o;
-}
-
-clingo_ast_script_t lean_to_ast_script(b_lean_obj_arg obj) {
-  clingo_ast_script_t v;
-  v.type = lean_to_script_type((uint8_t)lean_unbox(lean_ctor_get(obj, 0)));
-  v.code = strdup(lean_string_cstr(lean_ctor_get(obj, 1)));
-  return v;
-}
-
-lean_object* ast_program_to_lean(clingo_ast_program_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, lean_mk_string(v.name == NULL ? "" : v.name));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, ast_id_to_lean(v.parameters[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_program_t lean_to_ast_program(b_lean_obj_arg obj) {
-  clingo_ast_program_t v;
-  v.name = strdup(lean_string_cstr(lean_ctor_get(obj, 0)));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_id_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.parameters = (clingo_ast_id_t *)malloc(sizeof(clingo_ast_id_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_id_t *)v.parameters)[_i] = lean_to_ast_id(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* ast_external_to_lean(clingo_ast_external_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, ast_term_to_lean(v.atom));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, body_literal_to_lean(v.body[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  lean_ctor_set(o, 2, ast_term_to_lean(v.type));
-  return o;
-}
-
-clingo_ast_external_t lean_to_ast_external(b_lean_obj_arg obj) {
-  clingo_ast_external_t v;
-  v.atom = lean_to_ast_term(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_body_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.body = (clingo_ast_body_literal_t *)malloc(sizeof(clingo_ast_body_literal_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_body_literal_t *)v.body)[_i] = lean_to_body_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  v.type = lean_to_ast_term(lean_ctor_get(obj, 2));
-  return v;
-}
-
-lean_object* ast_edge_to_lean(clingo_ast_edge_t v) {
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, ast_term_to_lean(v.u));
-  lean_ctor_set(o, 1, ast_term_to_lean(v.v));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, body_literal_to_lean(v.body[_i]));
-    }
-    lean_ctor_set(o, 2, _arr);
-  }
-  return o;
-}
-
-clingo_ast_edge_t lean_to_ast_edge(b_lean_obj_arg obj) {
-  clingo_ast_edge_t v;
-  v.u = lean_to_ast_term(lean_ctor_get(obj, 0));
-  v.v = lean_to_ast_term(lean_ctor_get(obj, 1));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 2));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_body_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.body = (clingo_ast_body_literal_t *)malloc(sizeof(clingo_ast_body_literal_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_body_literal_t *)v.body)[_i] = lean_to_body_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* ast_heuristic_to_lean(clingo_ast_heuristic_t v) {
-  lean_object* o = lean_alloc_ctor(0, 5, 0);
-  lean_ctor_set(o, 0, ast_term_to_lean(v.atom));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, body_literal_to_lean(v.body[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  lean_ctor_set(o, 2, ast_term_to_lean(v.bias));
-  lean_ctor_set(o, 3, ast_term_to_lean(v.priority));
-  lean_ctor_set(o, 4, ast_term_to_lean(v.modifier));
-  return o;
-}
-
-clingo_ast_heuristic_t lean_to_ast_heuristic(b_lean_obj_arg obj) {
-  clingo_ast_heuristic_t v;
-  v.atom = lean_to_ast_term(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_body_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.body = (clingo_ast_body_literal_t *)malloc(sizeof(clingo_ast_body_literal_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_body_literal_t *)v.body)[_i] = lean_to_body_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  v.bias = lean_to_ast_term(lean_ctor_get(obj, 2));
-  v.priority = lean_to_ast_term(lean_ctor_get(obj, 3));
-  v.modifier = lean_to_ast_term(lean_ctor_get(obj, 4));
-  return v;
-}
-
-lean_object* ast_project_to_lean(clingo_ast_project_t v) {
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, ast_term_to_lean(v.atom));
-  {
-    lean_object* _arr = lean_mk_empty_array_with_capacity(lean_usize_to_nat(v.size));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      _arr = lean_array_push(_arr, body_literal_to_lean(v.body[_i]));
-    }
-    lean_ctor_set(o, 1, _arr);
-  }
-  return o;
-}
-
-clingo_ast_project_t lean_to_ast_project(b_lean_obj_arg obj) {
-  clingo_ast_project_t v;
-  v.atom = lean_to_ast_term(lean_ctor_get(obj, 0));
-  {
-    lean_array_object * _arr_obj = lean_to_array(lean_ctor_get(obj, 1));
-    v.size = _arr_obj->m_size;
-    if (v.size > SIZE_MAX / sizeof(clingo_ast_body_literal_t)) lean_internal_panic("lean-bindgen: array size overflow");
-    v.body = (clingo_ast_body_literal_t *)malloc(sizeof(clingo_ast_body_literal_t) * (v.size > 0 ? v.size : 1));
-    for (size_t _i = 0; _i < v.size; _i++) {
-      ((clingo_ast_body_literal_t *)v.body)[_i] = lean_to_body_literal(_arr_obj->m_data[_i]);
-    }
-  }
-  return v;
-}
-
-lean_object* ast_term_to_lean(clingo_ast_term_t v) {
-  lean_object* result = NULL;
-  switch (v.type) {
-    case clingo_ast_term_type_symbol: {
-      lean_object* data = lean_alloc_ctor(0, 1, 0);
-      lean_ctor_set(data, 0, lean_box_uint64(v.symbol));
-      result = data;
-      break;
-    }
-    case clingo_ast_term_type_variable: {
-      lean_object* data = lean_alloc_ctor(1, 1, 0);
-      lean_ctor_set(data, 0, lean_mk_string(v.variable == NULL ? "" : v.variable));
-      result = data;
-      break;
-    }
-    case clingo_ast_term_type_unary_operation: {
-      lean_object* data = lean_alloc_ctor(2, 1, 0);
-      lean_ctor_set(data, 0, ast_unary_operation_to_lean(*v.unary_operation));
-      result = data;
-      break;
-    }
-    case clingo_ast_term_type_binary_operation: {
-      lean_object* data = lean_alloc_ctor(3, 1, 0);
-      lean_ctor_set(data, 0, ast_binary_operation_to_lean(*v.binary_operation));
-      result = data;
-      break;
-    }
-    case clingo_ast_term_type_interval: {
-      lean_object* data = lean_alloc_ctor(4, 1, 0);
-      lean_ctor_set(data, 0, ast_interval_to_lean(*v.interval));
-      result = data;
-      break;
-    }
-    case clingo_ast_term_type_function: {
-      lean_object* data = lean_alloc_ctor(5, 1, 0);
-      lean_ctor_set(data, 0, ast_function_to_lean(*v.function));
-      result = data;
-      break;
-    }
-    case clingo_ast_term_type_external_function: {
-      lean_object* data = lean_alloc_ctor(6, 1, 0);
-      lean_ctor_set(data, 0, ast_function_to_lean(*v.external_function));
-      result = data;
-      break;
-    }
-    case clingo_ast_term_type_pool: {
-      lean_object* data = lean_alloc_ctor(7, 1, 0);
-      lean_ctor_set(data, 0, ast_pool_to_lean(*v.pool));
-      result = data;
-      break;
-    }
-    default: result = lean_alloc_ctor(0, 0, 0); break;
-  }
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, result);
-  return o;
-}
-
-clingo_ast_term_t lean_to_ast_term(b_lean_obj_arg obj) {
-  clingo_ast_term_t v;
-  memset(&v, 0, sizeof(v));
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  lean_object* data = lean_ctor_get(obj, 1);
-  unsigned cidx = lean_ptr_tag(data);
-  switch (cidx) {
-    case 0: {
-      v.type = clingo_ast_term_type_symbol;
-      v.symbol = (uint64_t)lean_unbox_uint64(lean_ctor_get(data, 0));
-      break;
-    }
-    case 1: {
-      v.type = clingo_ast_term_type_variable;
-      v.variable = lean_string_cstr(lean_ctor_get(data, 0));
-      break;
-    }
-    case 2: {
-      v.type = clingo_ast_term_type_unary_operation;
-      v.unary_operation = (clingo_ast_unary_operation_t *)malloc(sizeof(clingo_ast_unary_operation_t));
-      *(clingo_ast_unary_operation_t *)v.unary_operation = lean_to_ast_unary_operation(lean_ctor_get(data, 0));
-      break;
-    }
-    case 3: {
-      v.type = clingo_ast_term_type_binary_operation;
-      v.binary_operation = (clingo_ast_binary_operation_t *)malloc(sizeof(clingo_ast_binary_operation_t));
-      *(clingo_ast_binary_operation_t *)v.binary_operation = lean_to_ast_binary_operation(lean_ctor_get(data, 0));
-      break;
-    }
-    case 4: {
-      v.type = clingo_ast_term_type_interval;
-      v.interval = (clingo_ast_interval_t *)malloc(sizeof(clingo_ast_interval_t));
-      *(clingo_ast_interval_t *)v.interval = lean_to_ast_interval(lean_ctor_get(data, 0));
-      break;
-    }
-    case 5: {
-      v.type = clingo_ast_term_type_function;
-      v.function = (clingo_ast_function_t *)malloc(sizeof(clingo_ast_function_t));
-      *(clingo_ast_function_t *)v.function = lean_to_ast_function(lean_ctor_get(data, 0));
-      break;
-    }
-    case 6: {
-      v.type = clingo_ast_term_type_external_function;
-      v.external_function = (clingo_ast_function_t *)malloc(sizeof(clingo_ast_function_t));
-      *(clingo_ast_function_t *)v.external_function = lean_to_ast_function(lean_ctor_get(data, 0));
-      break;
-    }
-    case 7: {
-      v.type = clingo_ast_term_type_pool;
-      v.pool = (clingo_ast_pool_t *)malloc(sizeof(clingo_ast_pool_t));
-      *(clingo_ast_pool_t *)v.pool = lean_to_ast_pool(lean_ctor_get(data, 0));
-      break;
-    }
-    default: break;
-  }
-  return v;
-}
-
-lean_object* ast_literal_to_lean(clingo_ast_literal_t v) {
-  lean_object* result = NULL;
-  switch (v.type) {
-    case clingo_ast_literal_type_boolean: {
-      lean_object* data = lean_alloc_ctor(0, 1, 0);
-      lean_ctor_set(data, 0, lean_box((size_t)v.boolean));
-      result = data;
-      break;
-    }
-    case clingo_ast_literal_type_symbolic: {
-      lean_object* data = lean_alloc_ctor(1, 1, 0);
-      lean_ctor_set(data, 0, ast_term_to_lean(*v.symbol));
-      result = data;
-      break;
-    }
-    case clingo_ast_literal_type_comparison: {
-      lean_object* data = lean_alloc_ctor(2, 1, 0);
-      lean_ctor_set(data, 0, ast_comparison_to_lean(*v.comparison));
-      result = data;
-      break;
-    }
-    case clingo_ast_literal_type_csp: {
-      lean_object* data = lean_alloc_ctor(3, 1, 0);
-      lean_ctor_set(data, 0, csp_literal_to_lean(*v.csp_literal));
-      result = data;
-      break;
-    }
-    default: result = lean_alloc_ctor(0, 0, 0); break;
-  }
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, lean_box(sign_to_lean(v.sign)));
-  lean_ctor_set(o, 2, result);
-  return o;
-}
-
-clingo_ast_literal_t lean_to_ast_literal(b_lean_obj_arg obj) {
-  clingo_ast_literal_t v;
-  memset(&v, 0, sizeof(v));
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  v.sign = lean_to_sign((uint8_t)lean_unbox(lean_ctor_get(obj, 1)));
-  lean_object* data = lean_ctor_get(obj, 2);
-  unsigned cidx = lean_ptr_tag(data);
-  switch (cidx) {
-    case 0: {
-      v.type = clingo_ast_literal_type_boolean;
-      v.boolean = (uint8_t)lean_unbox(lean_ctor_get(data, 0));
-      break;
-    }
-    case 1: {
-      v.type = clingo_ast_literal_type_symbolic;
-      v.symbol = (clingo_ast_term_t *)malloc(sizeof(clingo_ast_term_t));
-      *(clingo_ast_term_t *)v.symbol = lean_to_ast_term(lean_ctor_get(data, 0));
-      break;
-    }
-    case 2: {
-      v.type = clingo_ast_literal_type_comparison;
-      v.comparison = (clingo_ast_comparison_t *)malloc(sizeof(clingo_ast_comparison_t));
-      *(clingo_ast_comparison_t *)v.comparison = lean_to_ast_comparison(lean_ctor_get(data, 0));
-      break;
-    }
-    case 3: {
-      v.type = clingo_ast_literal_type_csp;
-      v.csp_literal = (clingo_ast_csp_literal_t *)malloc(sizeof(clingo_ast_csp_literal_t));
-      *(clingo_ast_csp_literal_t *)v.csp_literal = lean_to_csp_literal(lean_ctor_get(data, 0));
-      break;
-    }
-    default: break;
-  }
-  return v;
-}
-
-lean_object* head_literal_to_lean(clingo_ast_head_literal_t v) {
-  lean_object* result = NULL;
-  switch (v.type) {
-    case clingo_ast_head_literal_type_literal: {
-      lean_object* data = lean_alloc_ctor(0, 1, 0);
-      lean_ctor_set(data, 0, ast_literal_to_lean(*v.literal));
-      result = data;
-      break;
-    }
-    case clingo_ast_head_literal_type_disjunction: {
-      lean_object* data = lean_alloc_ctor(1, 1, 0);
-      lean_ctor_set(data, 0, disjunction_to_lean(*v.disjunction));
-      result = data;
-      break;
-    }
-    case clingo_ast_head_literal_type_aggregate: {
-      lean_object* data = lean_alloc_ctor(2, 1, 0);
-      lean_ctor_set(data, 0, ast_aggregate_to_lean(*v.aggregate));
-      result = data;
-      break;
-    }
-    case clingo_ast_head_literal_type_head_aggregate: {
-      lean_object* data = lean_alloc_ctor(3, 1, 0);
-      lean_ctor_set(data, 0, head_aggregate_to_lean(*v.head_aggregate));
-      result = data;
-      break;
-    }
-    case clingo_ast_head_literal_type_theory_atom: {
-      lean_object* data = lean_alloc_ctor(4, 1, 0);
-      lean_ctor_set(data, 0, theory_atom_to_lean(*v.theory_atom));
-      result = data;
-      break;
-    }
-    default: result = lean_alloc_ctor(0, 0, 0); break;
-  }
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, result);
-  return o;
-}
-
-clingo_ast_head_literal_t lean_to_head_literal(b_lean_obj_arg obj) {
-  clingo_ast_head_literal_t v;
-  memset(&v, 0, sizeof(v));
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  lean_object* data = lean_ctor_get(obj, 1);
-  unsigned cidx = lean_ptr_tag(data);
-  switch (cidx) {
-    case 0: {
-      v.type = clingo_ast_head_literal_type_literal;
-      v.literal = (clingo_ast_literal_t *)malloc(sizeof(clingo_ast_literal_t));
-      *(clingo_ast_literal_t *)v.literal = lean_to_ast_literal(lean_ctor_get(data, 0));
-      break;
-    }
-    case 1: {
-      v.type = clingo_ast_head_literal_type_disjunction;
-      v.disjunction = (clingo_ast_disjunction_t *)malloc(sizeof(clingo_ast_disjunction_t));
-      *(clingo_ast_disjunction_t *)v.disjunction = lean_to_disjunction(lean_ctor_get(data, 0));
-      break;
-    }
-    case 2: {
-      v.type = clingo_ast_head_literal_type_aggregate;
-      v.aggregate = (clingo_ast_aggregate_t *)malloc(sizeof(clingo_ast_aggregate_t));
-      *(clingo_ast_aggregate_t *)v.aggregate = lean_to_ast_aggregate(lean_ctor_get(data, 0));
-      break;
-    }
-    case 3: {
-      v.type = clingo_ast_head_literal_type_head_aggregate;
-      v.head_aggregate = (clingo_ast_head_aggregate_t *)malloc(sizeof(clingo_ast_head_aggregate_t));
-      *(clingo_ast_head_aggregate_t *)v.head_aggregate = lean_to_head_aggregate(lean_ctor_get(data, 0));
-      break;
-    }
-    case 4: {
-      v.type = clingo_ast_head_literal_type_theory_atom;
-      v.theory_atom = (clingo_ast_theory_atom_t *)malloc(sizeof(clingo_ast_theory_atom_t));
-      *(clingo_ast_theory_atom_t *)v.theory_atom = lean_to_theory_atom(lean_ctor_get(data, 0));
-      break;
-    }
-    default: break;
-  }
-  return v;
-}
-
-lean_object* body_literal_to_lean(clingo_ast_body_literal_t v) {
-  lean_object* result = NULL;
-  switch (v.type) {
-    case clingo_ast_body_literal_type_literal: {
-      lean_object* data = lean_alloc_ctor(0, 1, 0);
-      lean_ctor_set(data, 0, ast_literal_to_lean(*v.literal));
-      result = data;
-      break;
-    }
-    case clingo_ast_body_literal_type_conditional: {
-      lean_object* data = lean_alloc_ctor(1, 1, 0);
-      lean_ctor_set(data, 0, conditional_literal_to_lean(*v.conditional));
-      result = data;
-      break;
-    }
-    case clingo_ast_body_literal_type_aggregate: {
-      lean_object* data = lean_alloc_ctor(2, 1, 0);
-      lean_ctor_set(data, 0, ast_aggregate_to_lean(*v.aggregate));
-      result = data;
-      break;
-    }
-    case clingo_ast_body_literal_type_body_aggregate: {
-      lean_object* data = lean_alloc_ctor(3, 1, 0);
-      lean_ctor_set(data, 0, body_aggregate_to_lean(*v.body_aggregate));
-      result = data;
-      break;
-    }
-    case clingo_ast_body_literal_type_theory_atom: {
-      lean_object* data = lean_alloc_ctor(4, 1, 0);
-      lean_ctor_set(data, 0, theory_atom_to_lean(*v.theory_atom));
-      result = data;
-      break;
-    }
-    case clingo_ast_body_literal_type_disjoint: {
-      lean_object* data = lean_alloc_ctor(5, 1, 0);
-      lean_ctor_set(data, 0, ast_disjoint_to_lean(*v.disjoint));
-      result = data;
-      break;
-    }
-    default: result = lean_alloc_ctor(0, 0, 0); break;
-  }
-  lean_object* o = lean_alloc_ctor(0, 3, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, lean_box(sign_to_lean(v.sign)));
-  lean_ctor_set(o, 2, result);
-  return o;
-}
-
-clingo_ast_body_literal_t lean_to_body_literal(b_lean_obj_arg obj) {
-  clingo_ast_body_literal_t v;
-  memset(&v, 0, sizeof(v));
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  v.sign = lean_to_sign((uint8_t)lean_unbox(lean_ctor_get(obj, 1)));
-  lean_object* data = lean_ctor_get(obj, 2);
-  unsigned cidx = lean_ptr_tag(data);
-  switch (cidx) {
-    case 0: {
-      v.type = clingo_ast_body_literal_type_literal;
-      v.literal = (clingo_ast_literal_t *)malloc(sizeof(clingo_ast_literal_t));
-      *(clingo_ast_literal_t *)v.literal = lean_to_ast_literal(lean_ctor_get(data, 0));
-      break;
-    }
-    case 1: {
-      v.type = clingo_ast_body_literal_type_conditional;
-      v.conditional = (clingo_ast_conditional_literal_t *)malloc(sizeof(clingo_ast_conditional_literal_t));
-      *(clingo_ast_conditional_literal_t *)v.conditional = lean_to_conditional_literal(lean_ctor_get(data, 0));
-      break;
-    }
-    case 2: {
-      v.type = clingo_ast_body_literal_type_aggregate;
-      v.aggregate = (clingo_ast_aggregate_t *)malloc(sizeof(clingo_ast_aggregate_t));
-      *(clingo_ast_aggregate_t *)v.aggregate = lean_to_ast_aggregate(lean_ctor_get(data, 0));
-      break;
-    }
-    case 3: {
-      v.type = clingo_ast_body_literal_type_body_aggregate;
-      v.body_aggregate = (clingo_ast_body_aggregate_t *)malloc(sizeof(clingo_ast_body_aggregate_t));
-      *(clingo_ast_body_aggregate_t *)v.body_aggregate = lean_to_body_aggregate(lean_ctor_get(data, 0));
-      break;
-    }
-    case 4: {
-      v.type = clingo_ast_body_literal_type_theory_atom;
-      v.theory_atom = (clingo_ast_theory_atom_t *)malloc(sizeof(clingo_ast_theory_atom_t));
-      *(clingo_ast_theory_atom_t *)v.theory_atom = lean_to_theory_atom(lean_ctor_get(data, 0));
-      break;
-    }
-    case 5: {
-      v.type = clingo_ast_body_literal_type_disjoint;
-      v.disjoint = (clingo_ast_disjoint_t *)malloc(sizeof(clingo_ast_disjoint_t));
-      *(clingo_ast_disjoint_t *)v.disjoint = lean_to_ast_disjoint(lean_ctor_get(data, 0));
-      break;
-    }
-    default: break;
-  }
-  return v;
-}
-
-lean_object* ast_theory_term_to_lean(clingo_ast_theory_term_t v) {
-  lean_object* result = NULL;
-  switch (v.type) {
-    case clingo_ast_theory_term_type_symbol: {
-      lean_object* data = lean_alloc_ctor(0, 1, 0);
-      lean_ctor_set(data, 0, lean_box_uint64(v.symbol));
-      result = data;
-      break;
-    }
-    case clingo_ast_theory_term_type_variable: {
-      lean_object* data = lean_alloc_ctor(1, 1, 0);
-      lean_ctor_set(data, 0, lean_mk_string(v.variable == NULL ? "" : v.variable));
-      result = data;
-      break;
-    }
-    case clingo_ast_theory_term_type_tuple: {
-      lean_object* data = lean_alloc_ctor(2, 1, 0);
-      lean_ctor_set(data, 0, theory_term_array_to_lean(*v.tuple));
-      result = data;
-      break;
-    }
-    case clingo_ast_theory_term_type_list: {
-      lean_object* data = lean_alloc_ctor(3, 1, 0);
-      lean_ctor_set(data, 0, theory_term_array_to_lean(*v.list));
-      result = data;
-      break;
-    }
-    case clingo_ast_theory_term_type_set: {
-      lean_object* data = lean_alloc_ctor(4, 1, 0);
-      lean_ctor_set(data, 0, theory_term_array_to_lean(*v.set));
-      result = data;
-      break;
-    }
-    case clingo_ast_theory_term_type_function: {
-      lean_object* data = lean_alloc_ctor(5, 1, 0);
-      lean_ctor_set(data, 0, theory_function_to_lean(*v.function));
-      result = data;
-      break;
-    }
-    case clingo_ast_theory_term_type_unparsed_term: {
-      lean_object* data = lean_alloc_ctor(6, 1, 0);
-      lean_ctor_set(data, 0, theory_unparsed_term_to_lean(*v.unparsed_term));
-      result = data;
-      break;
-    }
-    default: result = lean_alloc_ctor(0, 0, 0); break;
-  }
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, result);
-  return o;
-}
-
-clingo_ast_theory_term_t lean_to_ast_theory_term(b_lean_obj_arg obj) {
-  clingo_ast_theory_term_t v;
-  memset(&v, 0, sizeof(v));
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  lean_object* data = lean_ctor_get(obj, 1);
-  unsigned cidx = lean_ptr_tag(data);
-  switch (cidx) {
-    case 0: {
-      v.type = clingo_ast_theory_term_type_symbol;
-      v.symbol = (uint64_t)lean_unbox_uint64(lean_ctor_get(data, 0));
-      break;
-    }
-    case 1: {
-      v.type = clingo_ast_theory_term_type_variable;
-      v.variable = lean_string_cstr(lean_ctor_get(data, 0));
-      break;
-    }
-    case 2: {
-      v.type = clingo_ast_theory_term_type_tuple;
-      v.tuple = (clingo_ast_theory_term_array_t *)malloc(sizeof(clingo_ast_theory_term_array_t));
-      *(clingo_ast_theory_term_array_t *)v.tuple = lean_to_theory_term_array(lean_ctor_get(data, 0));
-      break;
-    }
-    case 3: {
-      v.type = clingo_ast_theory_term_type_list;
-      v.list = (clingo_ast_theory_term_array_t *)malloc(sizeof(clingo_ast_theory_term_array_t));
-      *(clingo_ast_theory_term_array_t *)v.list = lean_to_theory_term_array(lean_ctor_get(data, 0));
-      break;
-    }
-    case 4: {
-      v.type = clingo_ast_theory_term_type_set;
-      v.set = (clingo_ast_theory_term_array_t *)malloc(sizeof(clingo_ast_theory_term_array_t));
-      *(clingo_ast_theory_term_array_t *)v.set = lean_to_theory_term_array(lean_ctor_get(data, 0));
-      break;
-    }
-    case 5: {
-      v.type = clingo_ast_theory_term_type_function;
-      v.function = (clingo_ast_theory_function_t *)malloc(sizeof(clingo_ast_theory_function_t));
-      *(clingo_ast_theory_function_t *)v.function = lean_to_theory_function(lean_ctor_get(data, 0));
-      break;
-    }
-    case 6: {
-      v.type = clingo_ast_theory_term_type_unparsed_term;
-      v.unparsed_term = (clingo_ast_theory_unparsed_term_t *)malloc(sizeof(clingo_ast_theory_unparsed_term_t));
-      *(clingo_ast_theory_unparsed_term_t *)v.unparsed_term = lean_to_theory_unparsed_term(lean_ctor_get(data, 0));
-      break;
-    }
-    default: break;
-  }
-  return v;
-}
-
-lean_object* ast_statement_to_lean(clingo_ast_statement_t v) {
-  lean_object* result = NULL;
-  switch (v.type) {
-    case clingo_ast_statement_type_rule: {
-      lean_object* data = lean_alloc_ctor(0, 1, 0);
-      lean_ctor_set(data, 0, ast_rule_to_lean(*v.rule));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_const: {
-      lean_object* data = lean_alloc_ctor(1, 1, 0);
-      lean_ctor_set(data, 0, ast_definition_to_lean(*v.definition));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_show_signature: {
-      lean_object* data = lean_alloc_ctor(2, 1, 0);
-      lean_ctor_set(data, 0, ast_show_signature_to_lean(*v.show_signature));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_show_term: {
-      lean_object* data = lean_alloc_ctor(3, 1, 0);
-      lean_ctor_set(data, 0, ast_show_term_to_lean(*v.show_term));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_minimize: {
-      lean_object* data = lean_alloc_ctor(4, 1, 0);
-      lean_ctor_set(data, 0, ast_minimize_to_lean(*v.minimize));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_script: {
-      lean_object* data = lean_alloc_ctor(5, 1, 0);
-      lean_ctor_set(data, 0, ast_script_to_lean(*v.script));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_program: {
-      lean_object* data = lean_alloc_ctor(6, 1, 0);
-      lean_ctor_set(data, 0, ast_program_to_lean(*v.program));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_external: {
-      lean_object* data = lean_alloc_ctor(7, 1, 0);
-      lean_ctor_set(data, 0, ast_external_to_lean(*v.external));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_edge: {
-      lean_object* data = lean_alloc_ctor(8, 1, 0);
-      lean_ctor_set(data, 0, ast_edge_to_lean(*v.edge));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_heuristic: {
-      lean_object* data = lean_alloc_ctor(9, 1, 0);
-      lean_ctor_set(data, 0, ast_heuristic_to_lean(*v.heuristic));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_project_atom: {
-      lean_object* data = lean_alloc_ctor(10, 1, 0);
-      lean_ctor_set(data, 0, ast_project_to_lean(*v.project_atom));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_project_atom_signature: {
-      lean_object* data = lean_alloc_ctor(11, 1, 0);
-      lean_ctor_set(data, 0, lean_box_uint64(v.project_signature));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_theory_definition: {
-      lean_object* data = lean_alloc_ctor(12, 1, 0);
-      lean_ctor_set(data, 0, theory_definition_to_lean(*v.theory_definition));
-      result = data;
-      break;
-    }
-    case clingo_ast_statement_type_defined: {
-      lean_object* data = lean_alloc_ctor(13, 1, 0);
-      lean_ctor_set(data, 0, ast_defined_to_lean(*v.defined));
-      result = data;
-      break;
-    }
-    default: result = lean_alloc_ctor(0, 0, 0); break;
-  }
-  lean_object* o = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(o, 0, location_to_lean(v.location));
-  lean_ctor_set(o, 1, result);
-  return o;
-}
-
-clingo_ast_statement_t lean_to_ast_statement(b_lean_obj_arg obj) {
-  clingo_ast_statement_t v;
-  memset(&v, 0, sizeof(v));
-  v.location = lean_to_location(lean_ctor_get(obj, 0));
-  lean_object* data = lean_ctor_get(obj, 1);
-  unsigned cidx = lean_ptr_tag(data);
-  switch (cidx) {
-    case 0: {
-      v.type = clingo_ast_statement_type_rule;
-      v.rule = (clingo_ast_rule_t *)malloc(sizeof(clingo_ast_rule_t));
-      *(clingo_ast_rule_t *)v.rule = lean_to_ast_rule(lean_ctor_get(data, 0));
-      break;
-    }
-    case 1: {
-      v.type = clingo_ast_statement_type_const;
-      v.definition = (clingo_ast_definition_t *)malloc(sizeof(clingo_ast_definition_t));
-      *(clingo_ast_definition_t *)v.definition = lean_to_ast_definition(lean_ctor_get(data, 0));
-      break;
-    }
-    case 2: {
-      v.type = clingo_ast_statement_type_show_signature;
-      v.show_signature = (clingo_ast_show_signature_t *)malloc(sizeof(clingo_ast_show_signature_t));
-      *(clingo_ast_show_signature_t *)v.show_signature = lean_to_ast_show_signature(lean_ctor_get(data, 0));
-      break;
-    }
-    case 3: {
-      v.type = clingo_ast_statement_type_show_term;
-      v.show_term = (clingo_ast_show_term_t *)malloc(sizeof(clingo_ast_show_term_t));
-      *(clingo_ast_show_term_t *)v.show_term = lean_to_ast_show_term(lean_ctor_get(data, 0));
-      break;
-    }
-    case 4: {
-      v.type = clingo_ast_statement_type_minimize;
-      v.minimize = (clingo_ast_minimize_t *)malloc(sizeof(clingo_ast_minimize_t));
-      *(clingo_ast_minimize_t *)v.minimize = lean_to_ast_minimize(lean_ctor_get(data, 0));
-      break;
-    }
-    case 5: {
-      v.type = clingo_ast_statement_type_script;
-      v.script = (clingo_ast_script_t *)malloc(sizeof(clingo_ast_script_t));
-      *(clingo_ast_script_t *)v.script = lean_to_ast_script(lean_ctor_get(data, 0));
-      break;
-    }
-    case 6: {
-      v.type = clingo_ast_statement_type_program;
-      v.program = (clingo_ast_program_t *)malloc(sizeof(clingo_ast_program_t));
-      *(clingo_ast_program_t *)v.program = lean_to_ast_program(lean_ctor_get(data, 0));
-      break;
-    }
-    case 7: {
-      v.type = clingo_ast_statement_type_external;
-      v.external = (clingo_ast_external_t *)malloc(sizeof(clingo_ast_external_t));
-      *(clingo_ast_external_t *)v.external = lean_to_ast_external(lean_ctor_get(data, 0));
-      break;
-    }
-    case 8: {
-      v.type = clingo_ast_statement_type_edge;
-      v.edge = (clingo_ast_edge_t *)malloc(sizeof(clingo_ast_edge_t));
-      *(clingo_ast_edge_t *)v.edge = lean_to_ast_edge(lean_ctor_get(data, 0));
-      break;
-    }
-    case 9: {
-      v.type = clingo_ast_statement_type_heuristic;
-      v.heuristic = (clingo_ast_heuristic_t *)malloc(sizeof(clingo_ast_heuristic_t));
-      *(clingo_ast_heuristic_t *)v.heuristic = lean_to_ast_heuristic(lean_ctor_get(data, 0));
-      break;
-    }
-    case 10: {
-      v.type = clingo_ast_statement_type_project_atom;
-      v.project_atom = (clingo_ast_project_t *)malloc(sizeof(clingo_ast_project_t));
-      *(clingo_ast_project_t *)v.project_atom = lean_to_ast_project(lean_ctor_get(data, 0));
-      break;
-    }
-    case 11: {
-      v.type = clingo_ast_statement_type_project_atom_signature;
-      v.project_signature = (uint64_t)lean_unbox_uint64(lean_ctor_get(data, 0));
-      break;
-    }
-    case 12: {
-      v.type = clingo_ast_statement_type_theory_definition;
-      v.theory_definition = (clingo_ast_theory_definition_t *)malloc(sizeof(clingo_ast_theory_definition_t));
-      *(clingo_ast_theory_definition_t *)v.theory_definition = lean_to_theory_definition(lean_ctor_get(data, 0));
-      break;
-    }
-    case 13: {
-      v.type = clingo_ast_statement_type_defined;
-      v.defined = (clingo_ast_defined_t *)malloc(sizeof(clingo_ast_defined_t));
-      *(clingo_ast_defined_t *)v.defined = lean_to_ast_defined(lean_ctor_get(data, 0));
-      break;
-    }
-    default: break;
-  }
-  return v;
-}
-
 LEAN_EXPORT lean_obj_res clingo_symbol_callback_t_reverse_trampoline(lean_object *_fn_ptr_obj, lean_object *_user_data_obj, lean_object *_arg0, lean_object *_world) {
   clingo_symbol_callback_t _fn_ptr = (clingo_symbol_callback_t)lean_get_external_data(_fn_ptr_obj);
   void *_user_data = lean_get_external_data(_user_data_obj);
@@ -4041,7 +2646,7 @@ void clingo_logger_t_trampoline(clingo_warning_t code, char const *message, void
   lean_dec(_result);
 }
 
-bool clingo_symbol_callback_t_trampoline(clingo_symbol_t const *symbols, size_t symbols_size, void *data) {
+_Bool clingo_symbol_callback_t_trampoline(clingo_symbol_t const *symbols, size_t symbols_size, void *data) {
   lean_object* closure = (lean_object*)data;
   lean_object* _lean_0 = lean_mk_empty_array_with_capacity(lean_usize_to_nat(symbols_size));
   for (size_t _ai = 0; _ai < symbols_size; _ai++) {
@@ -4053,10 +2658,10 @@ bool clingo_symbol_callback_t_trampoline(clingo_symbol_t const *symbols, size_t 
   lean_object* _ret_val = lean_io_result_get_value(_result);
   uint8_t _ret = (uint8_t)lean_unbox(_ret_val);
   lean_dec(_result);
-  return (bool)_ret ? 1 : 0;
+  return (_Bool)_ret ? 1 : 0;
 }
 
-bool clingo_ground_callback_t_trampoline(clingo_location_t const *location, char const *name, clingo_symbol_t const *arguments, size_t arguments_size, void *data, clingo_symbol_callback_t symbol_callback, void *symbol_callback_data) {
+_Bool clingo_ground_callback_t_trampoline(clingo_location_t const *location, char const *name, clingo_symbol_t const *arguments, size_t arguments_size, void *data, clingo_symbol_callback_t symbol_callback, void *symbol_callback_data) {
   lean_object* closure = (lean_object*)data;
   lean_object* _lean_0 = location_to_lean(*location);
   lean_object* _lean_1 = lean_mk_string(name == NULL ? "" : name);
@@ -4075,10 +2680,10 @@ bool clingo_ground_callback_t_trampoline(clingo_location_t const *location, char
   lean_object* _ret_val = lean_io_result_get_value(_result);
   uint8_t _ret = (uint8_t)lean_unbox(_ret_val);
   lean_dec(_result);
-  return (bool)_ret ? 1 : 0;
+  return (_Bool)_ret ? 1 : 0;
 }
 
-bool clingo_solve_event_callback_t_trampoline(clingo_solve_event_type_t type, void *event, void *data, bool *goon) {
+_Bool clingo_solve_event_callback_t_trampoline(clingo_solve_event_type_t type, void *event, void *data, _Bool *goon) {
   lean_object *closure = (lean_object *)data;
   lean_object *eventObj;
   switch (type) {
@@ -4126,15 +2731,15 @@ bool clingo_solve_event_callback_t_trampoline(clingo_solve_event_type_t type, vo
   return 1;
 }
 
-bool clingo_ast_callback_t_trampoline(clingo_ast_statement_t const *_arg0, void *_arg1) {
-  lean_object* closure = (lean_object*)_arg1;
-  lean_object* _lean_0 = ast_statement_to_lean(*_arg0);
+_Bool clingo_ast_callback_t_trampoline(clingo_ast_t *ast, void *data) {
+  lean_object* closure = (lean_object*)data;
+  lean_object* _lean_0 = lean_alloc_external(get_ast_node_class(), (void *)(ast));
   lean_inc(closure);
   lean_object* _result = lean_apply_2(closure, _lean_0, lean_io_mk_world());
   lean_object* _ret_val = lean_io_result_get_value(_result);
   uint8_t _ret = (uint8_t)lean_unbox(_ret_val);
   lean_dec(_result);
-  return (bool)_ret ? 1 : 0;
+  return (_Bool)_ret ? 1 : 0;
 }
 
 LEAN_EXPORT lean_obj_res lean_clingo_version(lean_obj_arg _unit) {
@@ -4642,10 +3247,10 @@ LEAN_EXPORT lean_obj_res lean_clingo_control_statistics(b_lean_obj_arg control) 
     }
 }
 
-LEAN_EXPORT lean_obj_res lean_clingo_control_program_builder(b_lean_obj_arg control) {
+LEAN_EXPORT lean_obj_res lean_clingo_program_builder_init(b_lean_obj_arg control) {
   clingo_program_builder_t * builder = NULL;
   clingo_control_t * control_c = (clingo_control_t *) lean_get_external_data(control);
-  if (clingo_control_program_builder(control_c, &builder)) {
+  if (clingo_program_builder_init(control_c, &builder)) {
       lean_object* val = lean_alloc_external(get_program_builder_class(), (void *)builder);
       lean_object* ok = lean_alloc_ctor(1, 1, 0);
       lean_ctor_set(ok, 0, val);
@@ -5192,16 +3797,14 @@ LEAN_EXPORT lean_obj_res lean_clingo_statistics_value_get(b_lean_obj_arg statist
     }
 }
 
-LEAN_EXPORT lean_obj_res lean_clingo_program_builder_add(b_lean_obj_arg builder, b_lean_obj_arg statement) {
+LEAN_EXPORT lean_obj_res lean_clingo_program_builder_add(b_lean_obj_arg builder, b_lean_obj_arg ast) {
   clingo_program_builder_t * builder_c = (clingo_program_builder_t *) lean_get_external_data(builder);
-  clingo_ast_statement_t statement_c = lean_to_ast_statement(statement);
-  if (clingo_program_builder_add(builder_c, &statement_c)) {
-        free_ast_statement(&statement_c);
+  clingo_ast_t * ast_c = (clingo_ast_t *) lean_get_external_data(ast);
+  if (clingo_program_builder_add(builder_c, ast_c)) {
       lean_object* ok = lean_alloc_ctor(1, 1, 0);
       lean_ctor_set(ok, 0, lean_box(0));
       return lean_io_result_mk_ok(ok);
     } else {
-        free_ast_statement(&statement_c);
       char const *msg = clingo_error_message();
       if (msg == NULL) msg = "";
       lean_object* err = lean_alloc_ctor(0, 1, 0);
@@ -5246,4 +3849,81 @@ LEAN_EXPORT lean_obj_res lean_clingo_program_builder_end(b_lean_obj_arg builder)
       lean_ctor_set(err, 0, pair);
       return lean_io_result_mk_ok(err);
     }
+}
+
+LEAN_EXPORT lean_obj_res lean_clingo_ast_get_type(b_lean_obj_arg ast) {
+  clingo_ast_type_t type;
+  clingo_ast_t * ast_c = (clingo_ast_t *) lean_get_external_data(ast);
+  if (clingo_ast_get_type(ast_c, &type)) {
+      lean_object* val = lean_box(ast_type_to_lean(type));
+      lean_object* ok = lean_alloc_ctor(1, 1, 0);
+      lean_ctor_set(ok, 0, val);
+      return lean_io_result_mk_ok(ok);
+    } else {
+      lean_object* code = lean_box(error_to_lean(clingo_error_code()));
+      char const *msg = clingo_error_message();
+      if (msg == NULL) msg = "";
+      lean_object* pair = lean_alloc_ctor(0, 2, 0);
+      lean_ctor_set(pair, 0, code);
+      lean_ctor_set(pair, 1, lean_mk_string(msg));
+      lean_object* err = lean_alloc_ctor(0, 1, 0);
+      lean_ctor_set(err, 0, pair);
+      return lean_io_result_mk_ok(err);
+    }
+}
+
+LEAN_EXPORT lean_obj_res lean_clingo_ast_to_string_size(b_lean_obj_arg ast) {
+  size_t size;
+  clingo_ast_t * ast_c = (clingo_ast_t *) lean_get_external_data(ast);
+  if (clingo_ast_to_string_size(ast_c, &size)) {
+      lean_object* val = lean_box_usize(size);
+      lean_object* ok = lean_alloc_ctor(1, 1, 0);
+      lean_ctor_set(ok, 0, val);
+      return lean_io_result_mk_ok(ok);
+    } else {
+      lean_object* code = lean_box(error_to_lean(clingo_error_code()));
+      char const *msg = clingo_error_message();
+      if (msg == NULL) msg = "";
+      lean_object* pair = lean_alloc_ctor(0, 2, 0);
+      lean_ctor_set(pair, 0, code);
+      lean_ctor_set(pair, 1, lean_mk_string(msg));
+      lean_object* err = lean_alloc_ctor(0, 1, 0);
+      lean_ctor_set(err, 0, pair);
+      return lean_io_result_mk_ok(err);
+    }
+}
+
+LEAN_EXPORT lean_obj_res lean_clingo_ast_to_string(b_lean_obj_arg ast) {
+  clingo_ast_t * ast_c = (clingo_ast_t *) lean_get_external_data(ast);
+  size_t _size = 0;
+  if (!clingo_ast_to_string_size(ast_c, &_size)) {
+  lean_object* code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object* pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object* err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+  if (_size > SIZE_MAX / sizeof(uint8_t)) lean_internal_panic("lean-bindgen: array size overflow");
+  uint8_t *_buf = (uint8_t *)malloc(sizeof(uint8_t) * (_size > 0 ? _size : 1));
+  if (!clingo_ast_to_string(ast_c, _buf, _size)) {
+  free(_buf);
+    lean_object* code = lean_box(error_to_lean(clingo_error_code()));
+    char const *msg = clingo_error_message();
+    if (msg == NULL) msg = "";
+    lean_object* pair = lean_alloc_ctor(0, 2, 0);
+    lean_ctor_set(pair, 0, code);
+    lean_ctor_set(pair, 1, lean_mk_string(msg));
+    lean_object* err = lean_alloc_ctor(0, 1, 0);
+    lean_ctor_set(err, 0, pair);
+    return lean_io_result_mk_ok(err);
+  }
+  lean_object* val = lean_mk_string_from_bytes((char const *)_buf, _size > 0 ? _size - 1 : 0);
+  free(_buf);
+  lean_object* ok = lean_alloc_ctor(1, 1, 0);
+  lean_ctor_set(ok, 0, val);
+  return lean_io_result_mk_ok(ok);
 }
