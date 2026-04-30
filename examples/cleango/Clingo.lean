@@ -10,6 +10,9 @@ import Clingo.Statistics
 import Clingo.SolveHandle
 import Clingo.Backend
 import Clingo.Control
+import Clingo.Ast
+import Clingo.AstConvert
+import Clingo.Lang
 
 open Lean
 

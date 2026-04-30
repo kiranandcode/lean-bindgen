@@ -18,8 +18,11 @@ def main : IO Unit := do
   let .ok control ← Control.mk (args := #[])
     | throw (IO.userError "failed to create control")
 
+  -- Add an ASP program via string API (system clingo 5.8.0 uses opaque AST API,
+  -- so the struct-based program builder path isn't available at runtime).
   let .ok () ← Control.add control "base" #[] "p(X) :- q(X). q(a). q(b)."
     | throw (IO.userError "failed to add program")
+
   let .ok () ← Control.ground control #[⟨"base", #[]⟩] (fun _ _ _ _ => pure true)
     | throw (IO.userError "failed to ground")
 

@@ -306,7 +306,7 @@ mutual
 
 inductive AstTerm.Data where
   | symbol (val : Symbol)
-  | variable (val : UInt8)
+  | variable (val : String)
   | unaryOperation (val : AstUnaryOperation)
   | binaryOperation (val : AstBinaryOperation)
   | interval (val : AstInterval)
@@ -402,7 +402,7 @@ mutual
 
 inductive AstTheoryTerm.Data where
   | symbol (val : Symbol)
-  | variable (val : UInt8)
+  | variable (val : String)
   | tuple (val : TheoryTermArray)
   | list (val : TheoryTermArray)
   | set (val : TheoryTermArray)

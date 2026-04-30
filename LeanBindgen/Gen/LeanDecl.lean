@@ -26,6 +26,8 @@ inductive LeanDecl where
   | externOpaque (externSym : String) (name : String) (type : String)
   /-- `mutual ... end` wrapping multiple declarations -/
   | mutual_     (decls : Array LeanDecl)
+  /-- `def name : type := value` — a constant definition -/
+  | constDef    (name : String) (type : String) (value : String)
   /-- `-- comment` -/
   | comment     (text : String)
   /-- blank line -/

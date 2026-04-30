@@ -47,6 +47,8 @@ partial def LeanDecl.render : LeanDecl → String
     "structure " ++ name ++ " where\n" ++
       "\n".intercalate fieldLines ++
       renderDerivings derivings
+  | .constDef name type value =>
+    "def " ++ name ++ " : " ++ type ++ " := " ++ value
   | .externOpaque externSym name type =>
     "@[extern \"" ++ externSym ++ "\"]\nopaque " ++ name ++ " : " ++ type
   | .mutual_ decls =>

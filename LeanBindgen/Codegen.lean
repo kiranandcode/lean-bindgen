@@ -198,6 +198,11 @@ private def toSnake (s : String) : String :=
     if c.isUpper && acc ≠ "" then acc ++ "_" ++ String.singleton c.toLower
     else acc ++ String.singleton c.toLower
 
+/-- Capitalize the first character of a string. -/
+private def capitalize (s : String) : String :=
+  if s.isEmpty then s
+  else String.singleton s.front.toUpper ++ s.drop 1
+
 /-- The class-getter name for an opaque-pointer mapping. -/
 private def externalClassGetter (lean : String) : String :=
   s!"get_{toSnake lean}_class"
@@ -375,10 +380,11 @@ private def stdintMap : Std.HashMap String ResolvedType :=
 message if no mapping exists. -/
 partial def resolveType
     (anno : Std.HashMap String TypeAnno) (ty : CType)
+    (typedefChain : Std.HashMap String CType := {})
     : Except String ResolvedType := do
   match ty with
   -- Strip qualifiers — they don't affect the Lean type.
-  | .const t | .volatile t => resolveType anno t
+  | .const t | .volatile t => resolveType anno t typedefChain
   -- Pointer to void → Lean USize (untyped pointer, passthrough).
   | .pointer inner =>
     let inner' := stripQuals inner
@@ -393,11 +399,11 @@ partial def resolveType
       | .scalar .char _ =>
         .ok { stringRT with shimParam := "char const **",
                             shimReturn := "char const **" }
-      | _ => resolvePointerInner anno inner'
+      | _ => resolvePointerInner anno typedefChain inner'
     -- Pointer to typedef: special handling for annotated types.
-    | .typedef name => resolvePointerToTypedef anno name
+    | .typedef name => resolvePointerToTypedef anno typedefChain name
     -- Pointer to anything else: resolve the pointee and add `*`.
-    | _ => resolvePointerInner anno inner'
+    | _ => resolvePointerInner anno typedefChain inner'
   -- Typedef name: look up in user bindings, then in stdint table.
   | .typedef name =>
     match anno[name]? with
@@ -411,10 +417,15 @@ partial def resolveType
       | .taggedUnion _   => .ok (structByValRT a.lean name)
       | .bitfieldStruct _ => .ok (bitfieldRT a.lean name)
       | .eventCallback _ => .ok (callbackRT a.lean name)
+      | .mutableStruct _ => .ok (opaqueRT a.lean name)
     | none =>
       match stdintMap[name]? with
       | some r => .ok r
-      | none   => .error s!"unmapped typedef `{name}`"
+      | none   =>
+        -- Follow typedef chain from the header if available.
+        match typedefChain[name]? with
+        | some underlyingTy => resolveType anno underlyingTy typedefChain
+        | none => .error s!"unmapped typedef `{name}`"
   | _ =>
     match primitiveMap ty with
     | some r => .ok r
@@ -426,7 +437,8 @@ where
     | .volatile t => stripQuals t
     | t           => t
   /-- Resolve `T *` for a user-annotated typedef `T`. -/
-  resolvePointerToTypedef (anno : Std.HashMap String TypeAnno) (name : String)
+  resolvePointerToTypedef (anno : Std.HashMap String TypeAnno)
+      (typedefChain : Std.HashMap String CType) (name : String)
       : Except String ResolvedType :=
     match anno[name]? with
     | some a =>
@@ -443,13 +455,27 @@ where
       | .bitfieldStruct _ => .ok (bitfieldRT a.lean name)
       | .callback => .error s!"`{name}` is a callback typedef; pointers to callbacks not supported"
       | .eventCallback _ => .error s!"`{name}` is an event callback typedef; pointers not supported"
+      | .mutableStruct _ => .ok (opaqueRT a.lean name)
     | none =>
       match stdintMap[name]? with
       | some r => .ok { r with shimParam := r.shimParam ++ " *",
                                 shimReturn := r.shimReturn ++ " *" }
-      | none   => .error s!"unmapped pointer-to-typedef `{name}`"
+      | none   =>
+        -- Follow typedef chain
+        match typedefChain[name]? with
+        | some (.pointer innerTy) =>
+          match resolveType anno innerTy typedefChain with
+          | .ok r  => .ok { r with shimParam := r.shimParam ++ " *",
+                                    shimReturn := r.shimReturn ++ " *" }
+          | .error e => .error s!"in pointer-to-typedef `{name}`: {e}"
+        | some underlyingTy =>
+          match resolveType anno (.pointer underlyingTy) typedefChain with
+          | .ok r  => .ok r
+          | .error e => .error s!"in pointer-to-typedef `{name}`: {e}"
+        | none => .error s!"unmapped pointer-to-typedef `{name}`"
   /-- Resolve any other `T *` by resolving `T` and appending `*`. -/
-  resolvePointerInner (anno : Std.HashMap String TypeAnno) (inner : CType)
+  resolvePointerInner (anno : Std.HashMap String TypeAnno)
+      (typedefChain : Std.HashMap String CType) (inner : CType)
       : Except String ResolvedType := do
     -- Try as a primitive.
     match primitiveMap inner with
@@ -457,7 +483,7 @@ where
                              shimReturn := r.shimReturn ++ " *" }
     | none   =>
       -- Try resolving the inner type fully.
-      match resolveType anno inner with
+      match resolveType anno inner typedefChain with
       | .ok r  => .ok { r with shimParam := r.shimParam ++ " *",
                                 shimReturn := r.shimReturn ++ " *" }
       | .error e => .error s!"in pointer type: {e}"
@@ -475,20 +501,25 @@ structure HeaderIndex where
   typedefMap : Std.HashMap String CType
   /-- Anonymous union fields (from `unionDef none`), flattened. -/
   anonUnionFields : Array CField
+  /-- `#define NAME value` macro constants from the parsed header. -/
+  macroConstMap : Std.HashMap String String
 
 private def buildHeaderIndex (h : CHeader) : HeaderIndex := Id.run do
   let mut stm : Std.HashMap String (Array CField) := {}
   let mut etm : Std.HashMap String (Array (String × Option Int)) := {}
   let mut tdm : Std.HashMap String CType := {}
   let mut auf : Array CField := #[]
+  let mut mcm : Std.HashMap String String := {}
   for d in h.decls do
     match d with
     | .structDef (some t) fields => stm := stm.insert t fields
     | .enumDef (some t) variants => etm := etm.insert t variants
     | .typedef n ty => tdm := tdm.insert n ty
     | .unionDef none uFields => auf := auf ++ uFields
+    | .macroConst name value => mcm := mcm.insert name value
     | _ => pure ()
-  return { structTagMap := stm, enumTagMap := etm, typedefMap := tdm, anonUnionFields := auf }
+  return { structTagMap := stm, enumTagMap := etm, typedefMap := tdm,
+           anonUnionFields := auf, macroConstMap := mcm }
 
 private def lookupEnumTag (h : HeaderIndex) (tag : String) : Option (Array (String × Option Int)) :=
   h.enumTagMap[tag]?
@@ -539,12 +570,12 @@ private def resolveStructFields
       let elemCTy := match hf.type with
         | .pointer (.const t) | .pointer t => t
         | t => t
-      let elemRes ← resolveType anno elemCTy
+      let elemRes ← resolveType anno elemCTy h.typedefMap
       let elemKind := arrayElemKindOf elemRes
       let r := arrayRT elemRes.leanType elemRes.cLocalType elemKind
       out := out.push (cField, leanField, r)
     else
-      let r ← resolveType anno hf.type
+      let r ← resolveType anno hf.type h.typedefMap
       out := out.push (cField, leanField, r)
   return out
 
@@ -702,6 +733,7 @@ emit the matching shim. -/
 private def buildFunctionSignature
     (anno : Std.HashMap String TypeAnno)
     (decl : CDecl) (fa : FunctionAnno)
+    (typedefChain : Std.HashMap String CType := {})
     : Except String (String × Array ResolvedType × ResolvedType × Bool) := do
   let .function _name retCty params _variadic := decl
     | .error s!"function annotation `{fa.cName}` does not match a function decl"
@@ -727,16 +759,16 @@ private def buildFunctionSignature
         let .pointer elemTy := p.type
           | .error s!"array data param {i} of `{fa.cName}` is not a pointer"
         let elemTy := match elemTy with | .const t => t | t => t
-        let elemRes ← resolveType anno elemTy
+        let elemRes ← resolveType anno elemTy typedefChain
         let elemKind := arrayElemKindOf elemRes
         pure (arrayRT elemRes.leanType elemRes.cLocalType elemKind)
       else if byteArrayDataIndices.contains i then
         pure byteArrayRT
       else
-        resolveType anno p.type
+        resolveType anno p.type typedefChain
     let borrow := fa.borrowedParams.contains i
     paramRes := paramRes.push (borrow, r)
-  let retRes ← resolveType anno retCty
+  let retRes ← resolveType anno retCty typedefChain
   -- Apply the function-style transformation.
   -- Filter out hidden params from the Lean signature; they're
   -- entirely synthesised by the codegen.
@@ -760,7 +792,7 @@ private def buildFunctionSignature
       let outParam := params[outIdx]
       let .pointer pointee := outParam.type
         | .error s!"out-param `{outParam.name.getD "?"}` of `{fa.cName}` is not a pointer"
-      let pointeeRes ← resolveType anno pointee
+      let pointeeRes ← resolveType anno pointee typedefChain
       let visibleParams := visibleByIdx.filter (fun (_, i) => i ≠ outIdx)
                                        |>.map (fun (br, _) => br)
       let parts := visibleParams.map (fun (b, r) => renderParamType r b)
@@ -794,7 +826,7 @@ private def buildFunctionSignature
       let outParam := params[outIdx]
       let .pointer pointee := outParam.type
         | .error s!"out-param `{outParam.name.getD "?"}` of `{fa.cName}` is not a pointer"
-      let pointeeRes ← resolveType anno pointee
+      let pointeeRes ← resolveType anno pointee typedefChain
       let visibleParams := visibleByIdx.filter (fun (_, i) => i ≠ outIdx)
                                        |>.map (fun (br, _) => br)
       let parts := visibleParams.map (fun (b, r) => renderParamType r b)
@@ -812,7 +844,7 @@ private def buildFunctionSignature
       let outParam := params[outIdx]
       let .pointer pointee := outParam.type
         | .error s!"out-param `{outParam.name.getD "?"}` of `{fa.cName}` is not a pointer"
-      let pointeeRes ← resolveType anno pointee
+      let pointeeRes ← resolveType anno pointee typedefChain
       let visibleParams := visibleByIdx.filter (fun (_, i) => i ≠ outIdx)
                                        |>.map (fun (br, _) => br)
       let parts := visibleParams.map (fun (b, r) => renderParamType r b)
@@ -833,7 +865,7 @@ private def buildFunctionSignature
           | .error s!"out-array ptr param of `{fa.cName}` is not a pointer"
         let .pointer elemTy := innerPtr
           | .error s!"out-array ptr param of `{fa.cName}` is not a pointer-to-pointer"
-        let elemRes ← resolveType anno elemTy
+        let elemRes ← resolveType anno elemTy typedefChain
         let visibleParams := visibleByIdx.filter (fun (_, i) => i ≠ ptrIdx && i ≠ sizeIdx)
                                          |>.map (fun (br, _) => br)
         let parts := visibleParams.map (fun (b, r) => renderParamType r b)
@@ -854,7 +886,7 @@ private def buildFunctionSignature
         let bufParam := params[bufIdx]
         let .pointer elemTy := bufParam.type
           | .error s!"buffer param of `{fa.cName}` is not a pointer"
-        let elemRes ← resolveType anno elemTy
+        let elemRes ← resolveType anno elemTy typedefChain
         let visibleParams := visibleByIdx.filter (fun (_, i) => i ≠ bufIdx && i ≠ sizeIdx)
                                          |>.map (fun (br, _) => br)
         let parts := visibleParams.map (fun (b, r) => renderParamType r b)
@@ -882,7 +914,7 @@ private def buildFunctionSignature
         let outParam := params[idx]
         let .pointer pointee := outParam.type
           | .error s!"multi-out-param `{outParam.name.getD "?"}` of `{fa.cName}` at index {idx} is not a pointer"
-        let pointeeRes ← resolveType anno pointee
+        let pointeeRes ← resolveType anno pointee typedefChain
         outRes := outRes.push pointeeRes
       else
         .error s!"`{fa.cName}` has only {params.size} params but multiOutParam index {idx} is out of range"
@@ -942,10 +974,11 @@ private def emitFunctionDecl
     (anno : Std.HashMap String TypeAnno)
     (declMap : Std.HashMap String CDecl)
     (fa : FunctionAnno)
+    (typedefChain : Std.HashMap String CType := {})
     : Except String Gen.LeanDecl := do
   let some decl := declMap[fa.cName]?
     | .error s!"function `{fa.cName}` not found in header"
-  let (sig, _, _, _) ← buildFunctionSignature anno decl fa
+  let (sig, _, _, _) ← buildFunctionSignature anno decl fa typedefChain
   let externSym := externSymbolOf fa
   let leanShortName := fa.lean.splitOn "." |>.getLast!
   return .externOpaque externSym leanShortName sig
@@ -1022,6 +1055,8 @@ private def emitTypeDecl
     let callbackDef : Gen.LeanDecl :=
       .defAlias ta.lean s!"{ec.eventTypeName} → IO {ec.leanReturnType}"
     #[inductiveDecl, callbackDef]
+  | .mutableStruct _ =>
+    #[.opaque_ ta.lean "Type"]
 
 /-- Compute which Lean type names a type declaration's body refers to.
 Used for building the type-dependency graph for mutual-recursion
@@ -1179,7 +1214,7 @@ def emitLeanModule (b : Bindings) (hdr : CHeader) : Except String String := do
       for (cField, leanField) in tu.sharedFields do
         let some hf := lookupFieldInStruct h headerFields cField
           | .error s!"shared field `{cField}` not found in struct `{tu.cStructTag}`"
-        let r ← resolveType typeAnnoMap hf.type
+        let r ← resolveType typeAnnoMap hf.type h.typedefMap
         m := m.insert leanField r.leanType
       -- Resolve per-variant payload types from the union fields.
       for v in tu.variants do
@@ -1192,11 +1227,9 @@ def emitLeanModule (b : Bindings) (hdr : CHeader) : Except String String := do
           -- Resolve from the union field's C type.
           let some hf := lookupFieldInStruct h headerFields v.unionField
             | .error s!"union field `{v.unionField}` not found in struct `{tu.cStructTag}`"
-          -- Strip pointer/const from the field type to get the payload.
-          let payloadTy := match hf.type with
-            | .pointer (.const t) | .pointer t | .const t => t
-            | t => t
-          let r ← resolveType typeAnnoMap payloadTy
+          -- Resolve the full C type (including pointer). resolveType handles
+          -- `char const *` → String, `struct *` → struct type, etc.
+          let r ← resolveType typeAnnoMap hf.type h.typedefMap
           m := m.insert s!"__variant__{v.leanCtor}" s!"(val : {r.leanType})"
       pure (emitTypeDecl ta m)
     | _ => pure (emitTypeDecl ta)
@@ -1223,11 +1256,67 @@ def emitLeanModule (b : Bindings) (hdr : CHeader) : Except String String := do
         if let some decls := declsByLean[name]? then
           parts := parts ++ decls
       typeDecls := typeDecls.push (.mutual_ parts)
+  -- Mutable struct accessor decls
+  let mut mutableDecls : Array Gen.LeanDecl := #[]
+  for ta in b.types do
+    match ta.mapping with
+    | .mutableStruct msm =>
+      let cTypeName := msm.cTypedef.getD ta.cName
+      -- alloc
+      let allocSym := s!"lean_{toSnake ta.lean}_alloc"
+      mutableDecls := mutableDecls.push
+        (.externOpaque allocSym (s!"{ta.lean}.alloc") s!"IO {ta.lean}")
+      -- Per-field getters and setters
+      for fs in msm.fields do
+        match fs.kind with
+        | .scalar =>
+          -- Resolve field type from header
+          let fieldType ← do
+            let some fields := lookupStructTag h msm.cStructTag
+              | .error s!"struct tag `{msm.cStructTag}` not found"
+            let some field := fields.find? (·.name == fs.cName)
+              | .error s!"field `{fs.cName}` not found in struct `{msm.cStructTag}`"
+            let r ← resolveType typeAnnoMap field.type h.typedefMap
+            pure r.leanType
+          let getterSym := s!"lean_{toSnake ta.lean}_get_{fs.leanName}"
+          mutableDecls := mutableDecls.push
+            (.externOpaque getterSym (s!"{ta.lean}.get{capitalize fs.leanName}") s!"@& {ta.lean} → IO {fieldType}")
+          if !fs.readOnly then
+            let setterSym := s!"lean_{toSnake ta.lean}_set_{fs.leanName}"
+            mutableDecls := mutableDecls.push
+              (.externOpaque setterSym (s!"{ta.lean}.set{capitalize fs.leanName}") s!"@& {ta.lean} → {fieldType} → IO Unit")
+        | .stringReadOnly =>
+          let getterSym := s!"lean_{toSnake ta.lean}_get_{fs.leanName}"
+          mutableDecls := mutableDecls.push
+            (.externOpaque getterSym (s!"{ta.lean}.get{capitalize fs.leanName}") s!"@& {ta.lean} → IO (Option String)")
+        | .byteArrayInput _sizeField =>
+          let setterSym := s!"lean_{toSnake ta.lean}_set_{fs.leanName}"
+          mutableDecls := mutableDecls.push
+            (.externOpaque setterSym (s!"{ta.lean}.set{capitalize fs.leanName}") s!"@& {ta.lean} → @& ByteArray → IO Unit")
+        | .byteArrayOutput _sizeField =>
+          let setSym := s!"lean_{toSnake ta.lean}_set_{fs.leanName}_capacity"
+          mutableDecls := mutableDecls.push
+            (.externOpaque setSym (s!"{ta.lean}.set{capitalize fs.leanName}Capacity") s!"@& {ta.lean} → USize → IO Unit")
+          let getSym := s!"lean_{toSnake ta.lean}_get_{fs.leanName}_output"
+          mutableDecls := mutableDecls.push
+            (.externOpaque getSym (s!"{ta.lean}.get{capitalize fs.leanName}Output") s!"@& {ta.lean} → IO ByteArray")
+      -- finalizer getter (for user-written helpers to wrap raw pointers)
+      let _ := cTypeName
+    | _ => pure ()
   -- Function decls
   let mut fnDecls : Array Gen.LeanDecl := #[]
   for fa in b.functions do
-    fnDecls := fnDecls.push (← emitFunctionDecl b typeAnnoMap declMap fa)
-  let allDecls := typeDecls ++ fnDecls
+    fnDecls := fnDecls.push (← emitFunctionDecl b typeAnnoMap declMap fa h.typedefMap)
+  -- Constant defs
+  let mut constDecls : Array Gen.LeanDecl := #[]
+  for ca in b.constants do
+    let val ← match ca.value with
+      | some v => pure v
+      | none => match h.macroConstMap[ca.cName]? with
+        | some v => pure v
+        | none => .error s!"constant {ca.cName}: no value provided and not found in header"
+    constDecls := constDecls.push (.constDef ca.lean ca.type val)
+  let allDecls := typeDecls ++ mutableDecls ++ fnDecls ++ constDecls
   let mod : Gen.LeanModule := {
     headerComment := some "Auto-generated by lean-bindgen. Do not edit."
     imports := b.leanImports.map toString
@@ -1444,10 +1533,11 @@ private def emitShimFunction
     (anno : Std.HashMap String TypeAnno)
     (declMap : Std.HashMap String CDecl)
     (fa : FunctionAnno)
+    (typedefChain : Std.HashMap String CType := {})
     : Except String Gen.CTopLevel := do
   let some decl := declMap[fa.cName]?
     | .error s!"function `{fa.cName}` not found in header"
-  let (_, allRes, retRes, inIO) ← buildFunctionSignature anno decl fa
+  let (_, allRes, retRes, inIO) ← buildFunctionSignature anno decl fa typedefChain
   let .function _ _ params _ := decl
     | .error "internal: non-function passed to emitShimFunction"
   let externSym := externSymbolOf fa
@@ -1481,7 +1571,7 @@ private def emitShimFunction
       let outName := (params[outIdx].name).getD s!"arg{outIdx}"
       let .pointer pointee := params[outIdx].type
         | .error "out-param is not a pointer (shim)"
-      let pointeeRes ← resolveType anno pointee
+      let pointeeRes ← resolveType anno pointee typedefChain
       -- Build visible params: drop the out-param, callback user-data
       -- slots, and array-size slots.
       let arraySizeIndices := fa.arrayPairs.map Prod.snd
@@ -1621,7 +1711,7 @@ private def emitShimFunction
       let outName := (params[outIdx].name).getD s!"arg{outIdx}"
       let .pointer pointee := params[outIdx].type
         | .error "out-param is not a pointer (shim)"
-      let pointeeRes ← resolveType anno pointee
+      let pointeeRes ← resolveType anno pointee typedefChain
       let arraySizeIndices := fa.arrayPairs.map Prod.snd
       let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
       let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
@@ -1696,7 +1786,7 @@ private def emitShimFunction
       let outName := (params[outIdx].name).getD s!"arg{outIdx}"
       let .pointer pointee := params[outIdx].type
         | .error "out-param is not a pointer (shim)"
-      let pointeeRes ← resolveType anno pointee
+      let pointeeRes ← resolveType anno pointee typedefChain
       let arraySizeIndices := fa.arrayPairs.map Prod.snd
       let byteArraySizeIndices := fa.byteArrayPairs.map Prod.snd
       let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices ++ byteArraySizeIndices
@@ -1764,7 +1854,7 @@ private def emitShimFunction
           | .error "out-array ptr is not a pointer (shim)"
         let .pointer elemTy := innerPtr
           | .error "out-array ptr is not a pointer-to-pointer (shim)"
-        let elemRes ← resolveType anno elemTy
+        let elemRes ← resolveType anno elemTy typedefChain
         let arraySizeIndices := fa.arrayPairs.map Prod.snd
         let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices
         let visible := allRes.zipIdx.filter (fun (_, i) =>
@@ -1825,7 +1915,7 @@ private def emitShimFunction
       if h₂ : sizeIdx < params.size then
         let .pointer elemTy := params[bufIdx].type
           | .error "buffer param is not a pointer (shim)"
-        let elemRes ← resolveType anno elemTy
+        let elemRes ← resolveType anno elemTy typedefChain
         let arraySizeIndices := fa.arrayPairs.map Prod.snd
         let hiddenOut := fa.callbackUserDataParams ++ arraySizeIndices
         -- Shared params: everything except bufIdx and sizeIdx.
@@ -1959,7 +2049,7 @@ private def emitShimFunction
         let outName := (params[idx].name).getD s!"arg{idx}"
         let .pointer pointee := params[idx].type
           | .error "multi-out-param is not a pointer (shim)"
-        let pointeeRes ← resolveType anno pointee
+        let pointeeRes ← resolveType anno pointee typedefChain
         outInfos := outInfos.push (outName, pointeeRes)
     -- Build prelude + call args (including &outName for each out-param).
     let mut prelude  : Array String := #[]
@@ -3057,6 +3147,201 @@ private def emitEventCallbackTrampoline
     "}"
   return .raw body
 
+/-- Emit C shim helpers for a mutable struct: wrapper typedef, finalizer,
+external class, alloc, and per-field getters/setters. -/
+private def emitMutableStructHelpers
+    (h : HeaderIndex) (anno : Std.HashMap String TypeAnno)
+    (ta : TypeAnno) (msm : MutableStructMapping) : Except String (Array Gen.CTopLevel) := do
+  let cTypeName := msm.cTypedef.getD ta.cName
+  let snake := toSnake ta.lean
+  let wrapperName := s!"lean_{snake}_wrapper_t"
+
+  -- Find the struct fields from the header
+  let some headerFields := lookupStructTag h msm.cStructTag
+    | .error s!"struct tag `{msm.cStructTag}` not found in header"
+
+  -- Count byteArray fields for refs and capacity tracking
+  let mut baInputIdx : Nat := 0
+  let mut baOutputIdx : Nat := 0
+  let mut baInputFields : Array (MutableFieldSpec × Nat) := #[]
+  let mut baOutputFields : Array (MutableFieldSpec × Nat) := #[]
+  for fs in msm.fields do
+    match fs.kind with
+    | .byteArrayInput _ =>
+      baInputFields := baInputFields.push (fs, baInputIdx)
+      baInputIdx := baInputIdx + 1
+    | .byteArrayOutput _ =>
+      baOutputFields := baOutputFields.push (fs, baOutputIdx)
+      baOutputIdx := baOutputIdx + 1
+    | _ => pure ()
+
+  let totalBaRefs := baInputIdx + baOutputIdx
+
+  -- Wrapper struct
+  let mut wrapperFields := s!"    {cTypeName} inner;\n"
+  for i in [:totalBaRefs] do
+    wrapperFields := wrapperFields ++ s!"    lean_object *_ba_ref_{i};\n"
+  for (_, j) in baOutputFields do
+    wrapperFields := wrapperFields ++ s!"    size_t _out_cap_{j};\n"
+  let wrapperDef := s!"typedef struct \{\n{wrapperFields}} {wrapperName};"
+
+  -- Finalizer
+  let finalizerName := s!"finalize_{snake}"
+  let mut finalizerBody := s!"  {wrapperName} *w = ({wrapperName} *)ptr;\n"
+  for i in [:totalBaRefs] do
+    finalizerBody := finalizerBody ++ s!"  if (w->_ba_ref_{i}) lean_dec_ref(w->_ba_ref_{i});\n"
+  match msm.finalizer with
+  | some fin => finalizerBody := finalizerBody ++ s!"  {fin}(&w->inner);\n"
+  | none => pure ()
+  finalizerBody := finalizerBody ++ "  free(w);\n"
+  let finalizerFn := s!"static void {finalizerName}(void *ptr) \{\n{finalizerBody}}"
+
+  -- External class (same pattern as emitOpaqueClass)
+  let classGlobal := s!"g_{snake}_class"
+  let onceName := s!"g_{snake}_once"
+  let initName := s!"init_{snake}_class"
+  let getter := externalClassGetter ta.lean
+  let classDefs :=
+    s!"static lean_external_class *{classGlobal} = NULL;\n" ++
+    s!"static pthread_once_t {onceName} = PTHREAD_ONCE_INIT;\n" ++
+    s!"static void {initName}(void) \{\n" ++
+    s!"  {classGlobal} = lean_register_external_class(&{finalizerName}, &noop_foreach);\n" ++
+    s!"}\n" ++
+    s!"lean_external_class *{getter}(void) \{\n" ++
+    s!"  pthread_once(&{onceName}, {initName});\n" ++
+    s!"  return {classGlobal};\n" ++
+    s!"}"
+
+  -- Alloc function
+  let allocName := s!"lean_{snake}_alloc"
+  let allocFn :=
+    s!"LEAN_EXPORT lean_obj_res {allocName}(lean_obj_arg _unit) \{\n" ++
+    s!"  {wrapperName} *w = ({wrapperName} *)calloc(1, sizeof({wrapperName}));\n" ++
+    s!"  lean_object *o = lean_alloc_external({getter}(), w);\n" ++
+    s!"  return lean_io_result_mk_ok(o);\n" ++
+    s!"}"
+
+  let mut tops : Array Gen.CTopLevel := #[
+    .raw wrapperDef, .raw finalizerFn, .raw classDefs, .raw allocFn
+  ]
+
+  -- Per-field getters and setters
+  for fs in msm.fields do
+    match fs.kind with
+    | .scalar => do
+      -- Resolve field type
+      let some field := headerFields.find? (·.name == fs.cName)
+        | .error s!"field `{fs.cName}` not found in struct `{msm.cStructTag}`"
+      let r ← resolveType anno field.type h.typedefMap
+      -- Getter
+      let getterName := s!"lean_{snake}_get_{fs.leanName}"
+      let boxExpr := boxScalarExprFromResolved r "val"
+      let getterFn :=
+        s!"LEAN_EXPORT lean_obj_res {getterName}(b_lean_obj_arg obj, lean_obj_arg _unit) \{\n" ++
+        s!"  {wrapperName} *w = ({wrapperName} *)lean_get_external_data(obj);\n" ++
+        s!"  {r.cLocalType} val = w->inner.{fs.cName};\n" ++
+        s!"  return lean_io_result_mk_ok({boxExpr});\n" ++
+        s!"}"
+      tops := tops.push (.raw getterFn)
+      -- Setter
+      if !fs.readOnly then
+        let setterName := s!"lean_{snake}_set_{fs.leanName}"
+        let setterFn :=
+          s!"LEAN_EXPORT lean_obj_res {setterName}(b_lean_obj_arg obj, {r.shimParam} v, lean_obj_arg _unit) \{\n" ++
+          s!"  {wrapperName} *w = ({wrapperName} *)lean_get_external_data(obj);\n" ++
+          s!"  w->inner.{fs.cName} = ({r.cLocalType})v;\n" ++
+          s!"  return lean_io_result_mk_ok(lean_box(0));\n" ++
+          s!"}"
+        tops := tops.push (.raw setterFn)
+    | .stringReadOnly => do
+      let getterName := s!"lean_{snake}_get_{fs.leanName}"
+      let getterFn :=
+        s!"LEAN_EXPORT lean_obj_res {getterName}(b_lean_obj_arg obj, lean_obj_arg _unit) \{\n" ++
+        s!"  {wrapperName} *w = ({wrapperName} *)lean_get_external_data(obj);\n" ++
+        s!"  const char *s = (const char *)w->inner.{fs.cName};\n" ++
+        s!"  if (s == NULL) \{\n" ++
+        s!"    return lean_io_result_mk_ok(lean_box(0));\n" ++
+        s!"  } else \{\n" ++
+        s!"    lean_object *some = lean_alloc_ctor(1, 1, 0);\n" ++
+        s!"    lean_ctor_set(some, 0, lean_mk_string(s));\n" ++
+        s!"    return lean_io_result_mk_ok(some);\n" ++
+        s!"  }\n" ++
+        s!"}"
+      tops := tops.push (.raw getterFn)
+    | .byteArrayInput sizeField => do
+      -- Find this field's ref index
+      let refIdx := baInputFields.findIdx? (·.1.cName == fs.cName) |>.getD 0
+      let setterName := s!"lean_{snake}_set_{fs.leanName}"
+      let setterFn :=
+        s!"LEAN_EXPORT lean_obj_res {setterName}(b_lean_obj_arg obj, b_lean_obj_arg ba, lean_obj_arg _unit) \{\n" ++
+        s!"  {wrapperName} *w = ({wrapperName} *)lean_get_external_data(obj);\n" ++
+        s!"  if (w->_ba_ref_{refIdx}) lean_dec_ref(w->_ba_ref_{refIdx});\n" ++
+        s!"  lean_inc_ref(ba);\n" ++
+        s!"  w->_ba_ref_{refIdx} = ba;\n" ++
+        s!"  w->inner.{fs.cName} = lean_sarray_cptr(ba);\n" ++
+        s!"  w->inner.{sizeField} = lean_sarray_size(ba);\n" ++
+        s!"  return lean_io_result_mk_ok(lean_box(0));\n" ++
+        s!"}"
+      tops := tops.push (.raw setterFn)
+    | .byteArrayOutput sizeField => do
+      -- Find this field's ref index (after all input refs)
+      let outputLocalIdx := baOutputFields.findIdx? (·.1.cName == fs.cName) |>.getD 0
+      let refIdx := baInputIdx + outputLocalIdx
+      let setCapName := s!"lean_{snake}_set_{fs.leanName}_capacity"
+      let setCapFn :=
+        s!"LEAN_EXPORT lean_obj_res {setCapName}(b_lean_obj_arg obj, size_t cap, lean_obj_arg _unit) \{\n" ++
+        s!"  {wrapperName} *w = ({wrapperName} *)lean_get_external_data(obj);\n" ++
+        s!"  if (w->_ba_ref_{refIdx}) lean_dec_ref(w->_ba_ref_{refIdx});\n" ++
+        s!"  lean_object *ba = lean_alloc_sarray(1, 0, cap);\n" ++
+        s!"  w->_ba_ref_{refIdx} = ba;\n" ++
+        s!"  w->_out_cap_{outputLocalIdx} = cap;\n" ++
+        s!"  w->inner.{fs.cName} = lean_sarray_cptr(ba);\n" ++
+        s!"  w->inner.{sizeField} = cap;\n" ++
+        s!"  return lean_io_result_mk_ok(lean_box(0));\n" ++
+        s!"}"
+      tops := tops.push (.raw setCapFn)
+      let getOutName := s!"lean_{snake}_get_{fs.leanName}_output"
+      let getOutFn :=
+        s!"LEAN_EXPORT lean_obj_res {getOutName}(b_lean_obj_arg obj, lean_obj_arg _unit) \{\n" ++
+        s!"  {wrapperName} *w = ({wrapperName} *)lean_get_external_data(obj);\n" ++
+        s!"  size_t written = w->_out_cap_{outputLocalIdx} - (size_t)w->inner.{sizeField};\n" ++
+        s!"  lean_object *result = lean_alloc_sarray(1, written, written);\n" ++
+        s!"  memcpy(lean_sarray_cptr(result), lean_sarray_cptr(w->_ba_ref_{refIdx}), written);\n" ++
+        s!"  return lean_io_result_mk_ok(result);\n" ++
+        s!"}"
+      tops := tops.push (.raw getOutFn)
+  return tops
+where
+  /-- Box a scalar value for returning to Lean (dispatching on resolved type). -/
+  boxScalarExprFromResolved (r : ResolvedType) (varName : String) : String :=
+    match r.ctorScalar with
+    | "uint8"   => s!"lean_box((uint8_t){varName})"
+    | "uint16"  => s!"lean_box_uint16({varName})"
+    | "uint32"  => s!"lean_box_uint32({varName})"
+    | "uint64"  => s!"lean_box_uint64({varName})"
+    | "float32" => s!"lean_box_float32({varName})"
+    | "float"   => s!"lean_box_float({varName})"
+    | "usize"   => s!"lean_box_usize({varName})"
+    | _         =>
+      -- For enum types, use the to_lean helper
+      match r.returnMarshal with
+      | .enumHelper fn => s!"lean_box({fn}({varName}))"
+      | _              => s!"lean_box((size_t){varName})"
+  /-- Unbox a scalar value from Lean, returning (expression, shimParamType). -/
+  unboxScalarExprFromResolved (r : ResolvedType) (varName : String) : String × String :=
+    match r.ctorScalar with
+    | "uint8"   => (s!"(uint8_t)lean_unbox({varName})", "uint8_t")
+    | "uint16"  => (s!"lean_unbox_uint16({varName})", "uint16_t")
+    | "uint32"  => (s!"lean_unbox_uint32({varName})", "uint32_t")
+    | "uint64"  => (s!"lean_unbox_uint64({varName})", "uint64_t")
+    | "float32" => (s!"lean_unbox_float32({varName})", "double")
+    | "float"   => (s!"lean_unbox_float({varName})", "double")
+    | "usize"   => (s!"lean_unbox_usize({varName})", "size_t")
+    | _         =>
+      match r.paramMarshal with
+      | .enumHelper fn => (s!"{fn}((uint8_t)lean_unbox({varName}))", "uint8_t")
+      | _              => (s!"({r.cLocalType})lean_unbox({varName})", r.shimParam)
+
 /-- Generate the entire shim source text. -/
 def emitShim (b : Bindings) (hdr : CHeader) : Except String String := do
   let h := buildHeaderIndex hdr
@@ -3133,15 +3418,18 @@ def emitShim (b : Bindings) (hdr : CHeader) : Except String String := do
     | .eventCallback ec =>
       let cbTop ← emitEventCallbackTrampoline h typeAnnoMap ta ec
       callbacks := callbacks.push cbTop
+    | .mutableStruct msm =>
+      opaqueHelpers := opaqueHelpers ++ (← emitMutableStructHelpers h typeAnnoMap ta msm)
     | _ => pure ()
   let hasCallbacks := !callbacks.isEmpty
+  let hasMutableStruct := b.types.any (fun ta => match ta.mapping with | .mutableStruct _ => true | _ => false)
   let needsForeach := !opaqueHelpers.isEmpty || hasCallbacks
   let hasTaggedUnion := b.types.any (fun ta => match ta.mapping with | .taggedUnion _ => true | _ => false)
   let hasStructOrTU := b.types.any (fun ta => match ta.mapping with
     | .structRecord _ | .taggedUnion _ => true | _ => false)
   let hasByteArrayOut := b.functions.any (fun fa => match fa.style with
     | .byteArrayOutBoolStatus _ _ _ => true | _ => false)
-  let needsStdlib := hasStructOrTU || hasNestedCallbacks || hasByteArrayOut
+  let needsStdlib := hasStructOrTU || hasNestedCallbacks || hasByteArrayOut || hasMutableStruct
   -- Assemble the CShimFile in order.
   let mut file : Gen.CShimFile := #[]
   file := file.push (.comment "Auto-generated by lean-bindgen. Do not edit.")
@@ -3149,7 +3437,8 @@ def emitShim (b : Bindings) (hdr : CHeader) : Except String String := do
   if !opaqueHelpers.isEmpty || hasNestedCallbacks then
     file := file.push (.include "pthread.h")
   if needsStdlib then file := file.push (.include "stdlib.h")
-  if hasTaggedUnion || hasStructOrTU || hasByteArrayOut then file := file.push (.include "string.h")
+  if hasTaggedUnion || hasStructOrTU || hasByteArrayOut || hasMutableStruct then
+    file := file.push (.include "string.h")
   file := file.push (.include (b.headerPath.splitOn "/" |>.getLast!) false)
   if needsForeach then
     file := file.push (.raw "static void noop_foreach(void *mod, b_lean_obj_arg fn) { (void)mod; (void)fn; }")
@@ -3171,7 +3460,7 @@ def emitShim (b : Bindings) (hdr : CHeader) : Except String String := do
   file := file ++ enumHelpers ++ opaqueHelpers ++ freeHelpers ++ structHelpers
                ++ reverseCallbacks ++ callbacks
   for fa in b.functions do
-    file := file.push (← emitShimFunction b typeAnnoMap declMap fa)
+    file := file.push (← emitShimFunction b typeAnnoMap declMap fa h.typedefMap)
   return Gen.CShimFile.render file ++ "\n"
 
 end Codegen

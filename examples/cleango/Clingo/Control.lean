@@ -1,5 +1,6 @@
 import Clingo.Types
 import Clingo.SolveHandle
+import Clingo.AstConvert
 
 namespace Clingo
 
@@ -52,12 +53,16 @@ end Control
 
 namespace ProgramBuilder
 
-def addStatement (pb : @& ProgramBuilder) (stmt : @& ClingoBindings.AstStatement) : IO (Except String Unit) :=
+def addStatementRaw (pb : @& ProgramBuilder) (stmt : @& ClingoBindings.AstStatement) : IO (Except String Unit) :=
   programBuilderAdd pb stmt
 
-def addStatements (pb : @& ProgramBuilder) (stmts : List ClingoBindings.AstStatement) : IO Unit :=
+def addStatement (pb : @& ProgramBuilder) (stmt : @& Ast.Statement) : IO Unit := do
+  let converted ← AstConvert.convertStatement stmt
+  let _ ← pb.addStatementRaw converted
+
+def addStatements (pb : @& ProgramBuilder) (stmts : List Ast.Statement) : IO Unit :=
   for stmt in stmts do
-    let _ ← pb.addStatement stmt
+    pb.addStatement stmt
 
 end ProgramBuilder
 

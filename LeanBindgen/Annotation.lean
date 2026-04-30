@@ -241,6 +241,42 @@ structure EventCallbackMapping where
   outParamTypes : Array String := #[]
   deriving Inhabited
 
+/-- Kind of a mutable struct field for getter/setter generation. -/
+inductive MutableFieldKind where
+  | scalar
+  | stringReadOnly
+  /-- Set ptr+size from `@& ByteArray`. `sizeField` names the C size field. -/
+  | byteArrayInput (sizeField : String)
+  /-- Alloc internal buffer, get output. `sizeField` names the C size field. -/
+  | byteArrayOutput (sizeField : String)
+  deriving Inhabited
+
+/-- One field of a mutable struct mapping. -/
+structure MutableFieldSpec where
+  cName    : String
+  leanName : String
+  kind     : MutableFieldKind := .scalar
+  readOnly : Bool := false
+  deriving Inhabited
+
+/-- A heap-allocated C struct with mutable field access. The Lean side
+gets an opaque type backed by a wrapper struct; the codegen emits
+alloc + per-field getters/setters. -/
+structure MutableStructMapping where
+  cStructTag : String
+  cTypedef   : Option String := none
+  fields     : Array MutableFieldSpec := #[]
+  finalizer  : Option String := none
+  deriving Inhabited
+
+/-- A named constant from the C header (`#define` or user-supplied value). -/
+structure ConstAnno where
+  cName : String
+  lean  : String
+  type  : String              -- "Int32", "UInt32", etc.
+  value : Option String := none -- if none, lookup from parsed CDecl.macroConst
+  deriving Inhabited
+
 /-- How a C type is presented in Lean. -/
 inductive TypeMapping
   /-- Wrap an integer C typedef as a fresh Lean `def`. -/
@@ -281,6 +317,10 @@ inductive TypeMapping
   different typed data per event type. Emits a Lean inductive for
   the event and a trampoline with switch-dispatch. -/
   | eventCallback (ec : EventCallbackMapping)
+  /-- A heap-allocated C struct with mutable field access. The Lean side
+  gets an opaque type; the shim allocates a wrapper struct (original
+  struct as first member) and provides per-field getters/setters. -/
+  | mutableStruct (mapping : MutableStructMapping)
   deriving Inhabited
 
 structure TypeAnno where
@@ -426,8 +466,13 @@ structure Bindings where
   libPrefix   : String
   types       : Array TypeAnno     := #[]
   functions   : Array FunctionAnno := #[]
+  constants   : Array ConstAnno    := #[]
   /-- Imports the generated Lean module needs (e.g. `Lean`). -/
   leanImports : Array Lean.Name    := #[]
+  /-- When non-empty, run `cc -E -P <preprocessorArgs> <headerPath>` to
+  preprocess the header before parsing. Typically contains `-I` and
+  `-D` flags. -/
+  preprocessorArgs : Array String  := #[]
   deriving Inhabited
 
 end LeanBindgen

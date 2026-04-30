@@ -25,8 +25,11 @@ namespace LeanBindgen.C
 /-! ## Keyword sets -/
 
 private def storageKeywords   : List String :=
-  ["typedef", "extern", "static", "inline", "auto", "register"]
-private def qualifierKeywords : List String := ["const", "volatile", "restrict"]
+  ["typedef", "extern", "static", "inline", "__inline", "__inline__",
+   "auto", "register", "_Noreturn", "__forceinline"]
+private def qualifierKeywords : List String :=
+  ["const", "volatile", "restrict", "__restrict", "__restrict__",
+   "_Nonnull", "_Nullable", "_Null_unspecified"]
 private def signKeywords      : List String := ["signed", "unsigned"]
 private def builtinTypeKwds   : List String :=
   ["void", "char", "short", "int", "long", "float", "double", "_Bool"]
@@ -178,6 +181,25 @@ partial def skipBalancedParens (depth : Nat) : ParserM Unit := do
   | some ⟨.punct ")", _⟩  => ParserM.advance; skipBalancedParens (depth - 1)
   | _                     => ParserM.advance; skipBalancedParens depth
 
+/-- Skip `__attribute__((...))`, `__extension__`, `__asm__(...)`/`__asm(...)`,
+and GCC-style `__declspec(...)`. Called after declarators to consume
+compiler-specific annotations that don't affect the type. -/
+partial def skipAttributes : ParserM Unit := do
+  match (← ParserM.peek?) with
+  | some ⟨.ident kw, _⟩ =>
+    if kw == "__attribute__" || kw == "__declspec" then
+      ParserM.advance
+      if ← isPunct "(" then ParserM.advance; skipBalancedParens 1
+      skipAttributes
+    else if kw == "__extension__" then
+      ParserM.advance; skipAttributes
+    else if kw == "__asm__" || kw == "__asm" || kw == "asm" then
+      ParserM.advance
+      if ← isPunct "(" then ParserM.advance; skipBalancedParens 1
+      skipAttributes
+    else pure ()
+  | _ => pure ()
+
 /-! ## Declarator wrapping
 
 A declarator describes how a variable's type wraps its base type. For
@@ -267,6 +289,12 @@ where
           -- specifier if no base type has been set yet.
           if (← isKnownTypedef kw) && acc.base.isNone && acc.intWidth.isNone then
             advance; go { acc with base := some (.typedef kw) }
+          else if kw == "__attribute__" || kw == "__declspec" then
+            advance
+            if ← isPunct "(" then advance; skipBalancedParens 1
+            go acc
+          else if kw == "__extension__" then
+            advance; go acc
           else if (← isKnownMacro kw) then
             -- Annotation-like macro (e.g. CLINGO_VISIBILITY_DEFAULT,
             -- CLINGO_DEPRECATED). Skip it. If it's followed by `(`...`)`
@@ -292,6 +320,7 @@ partial def parseFieldBlock : ParserM (Array CField) := do
     let mut moreDeclarators := true
     while moreDeclarators do
       let (name, wrap) ← parseDeclarator
+      skipAttributes
       let ty := wrap baseTy
       let bits? ← if ← isPunct ":" then do
           advance
@@ -371,7 +400,14 @@ partial def parsePointerPrefix : ParserM TypeWrap := do
         advance; single := composeWrap CType.const single
       else if ← isIdent "volatile" then
         advance; single := composeWrap CType.volatile single
-      else moreQuals := false
+      else
+        -- Skip any other qualifier-like keywords (restrict, __restrict, etc.)
+        match (← peek?) with
+        | some ⟨.ident kw, _⟩ =>
+          if qualifierKeywords.contains kw && kw != "const" && kw != "volatile" then
+            advance
+          else moreQuals := false
+        | _ => moreQuals := false
     let rest ← parsePointerPrefix
     -- rest wraps OUTSIDE single (further-out pointers wrap inner ones).
     return composeWrap rest single
@@ -476,6 +512,7 @@ partial def parseTopDecl : ParserM Unit := do
   let mut more := true
   while more do
     let (name, wrap) ← parseDeclarator
+    skipAttributes
     let ty := wrap baseTy
     if name = "" then err "declaration without a name"
     let decl ←
@@ -509,6 +546,35 @@ private def handlePPLine (raw : String) : ParserM Unit := do
         macros := s.macros.insert name,
         decls  := s.decls.push (.macroConst name value) }
 
+/-- Skip tokens until we reach a `;` or `}` at brace-depth 0.
+Used for resilient parsing: when a top-level declaration fails to
+parse, we skip to the next declaration boundary and continue. -/
+private partial def skipToNextDecl (depth : Nat := 0) : ParserM Unit := do
+  match (← ParserM.peek?) with
+  | none                  => return
+  | some ⟨.eof, _⟩         => return
+  | some ⟨.punct "{", _⟩  => ParserM.advance; skipToNextDecl (depth + 1)
+  | some ⟨.punct "}", _⟩  =>
+    if depth ≤ 1 then
+      if depth = 1 then ParserM.advance
+      return
+    else ParserM.advance; skipToNextDecl (depth - 1)
+  | some ⟨.punct ";", _⟩  =>
+    if depth = 0 then ParserM.advance; return
+    else ParserM.advance; skipToNextDecl depth
+  | _                     => ParserM.advance; skipToNextDecl depth
+
+/-- Try to parse a top-level declaration; on failure, skip to the
+next `;` or `}` at brace-depth 0 and continue. -/
+private partial def tryParseTopDecl : ParserM Unit := do
+  let saved ← get
+  match parseTopDecl saved with
+  | .ok () s   => set s
+  | .error _ _ =>
+    -- Restore position to where we started, then skip forward.
+    set saved
+    skipToNextDecl
+
 /-- Iterate over top-level forms. `allowEndBrace` is set to `true` when
 we're inside an `extern "C" { ... }` block; in that case a `}` exits
 the loop (the caller consumes it). At the true top level, `}` is an
@@ -537,8 +603,8 @@ private partial def parseHeaderLoop (allowEndBrace : Bool) : ParserM Unit := do
       -- consumed `extern "C"`, so the next token starts a normal decl.
       parseHeaderLoop allowEndBrace
     | _ =>
-      parseTopDecl; parseHeaderLoop allowEndBrace
-  | _ => parseTopDecl; parseHeaderLoop allowEndBrace
+      tryParseTopDecl; parseHeaderLoop allowEndBrace
+  | _ => tryParseTopDecl; parseHeaderLoop allowEndBrace
 
 /-- Parse an entire token stream into a `CHeader`. -/
 def parseHeader (tokens : Array Token) : Except String CHeader :=

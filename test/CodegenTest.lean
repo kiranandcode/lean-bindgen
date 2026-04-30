@@ -5,8 +5,23 @@ import Examples.ClingoSignature
 import Examples.ClingoFull
 import Examples.CleangoProject
 import Examples.ZlibBindings
+import Examples.ZlibDirect
 
 open LeanBindgen LeanBindgen.C LeanBindgen.Codegen
+
+/-- Read and optionally preprocess a C header. When `preprocessorArgs`
+is non-empty, runs `cc -E -P <args> <path>` and returns the
+preprocessed output; otherwise reads the file directly. -/
+private def readHeader (b : Bindings) : IO String := do
+  if b.preprocessorArgs.isEmpty then
+    IO.FS.readFile b.headerPath
+  else
+    let result ← IO.Process.output {
+      cmd := "cc", args := #["-E", "-P"] ++ b.preprocessorArgs ++ #[b.headerPath]
+    }
+    if result.exitCode != 0 then
+      throw (.userError s!"preprocessor failed (exit {result.exitCode}): {result.stderr}")
+    pure result.stdout
 
 /-- Resolve where to write generated artifacts. The lakefile under
 `examples/clingo-signature-runtime/` expects `Generated/Signature.lean`
@@ -113,6 +128,43 @@ private def mixedScalarBindings : Bindings := {
   ]
 }
 
+/-- Bindings for the mutable struct test header. -/
+private def mutableStructBindings : Bindings := {
+  headerPath := "test/mutable_struct.h"
+  leanModule := `Generated.MutableStruct
+  outDir     := "/tmp"
+  shimPath   := "/tmp/mutable-struct-shim.c"
+  libPrefix  := "test"
+  types := #[
+    { cName := "my_stream_t", lean := "MyStream",
+      mapping := .mutableStruct {
+        cStructTag := "my_stream"
+        cTypedef   := "my_stream_t"
+        fields := #[
+          { cName := "next_in",  leanName := "nextIn",
+            kind := .byteArrayInput "avail_in" },
+          { cName := "next_out", leanName := "nextOut",
+            kind := .byteArrayOutput "avail_out" },
+          { cName := "total_in",  leanName := "totalIn",  readOnly := true },
+          { cName := "total_out", leanName := "totalOut", readOnly := true },
+          { cName := "msg",       leanName := "msg",
+            kind := .stringReadOnly },
+          { cName := "level",     leanName := "level" }
+        ]
+        finalizer := "my_stream_end"
+      } }
+  ]
+  functions := #[
+    { cName := "my_stream_init", lean := "MyStream.init",
+      style := .direct, inIO := true },
+    { cName := "my_stream_process", lean := "MyStream.process",
+      style := .direct, inIO := true }
+  ]
+  constants := #[
+    { cName := "MY_CONST", lean := "MY_CONST", type := "Int32", value := "42" }
+  ]
+}
+
 set_option maxRecDepth 1024
 
 def main : IO Unit := do
@@ -138,7 +190,7 @@ def main : IO Unit := do
   IO.println s!"\nwrote {leanFile} ({leanText.length} bytes)"
   IO.println s!"wrote {shimFile} ({shimText.length} bytes)"
   let leanPrefix ← IO.Process.output { cmd := "lean", args := #["--print-prefix"] }
-  let leanIncPath := s!"{leanPrefix.stdout.trim}/include"
+  let leanIncPath := s!"{leanPrefix.stdout.trimAscii.toString}/include"
   -- Validate main shim against system clingo.h.
   let out ← IO.Process.output {
     cmd := "cc"
@@ -471,3 +523,128 @@ def main : IO Unit := do
     IO.println "✓ all zlib ByteArray codegen checks passed"
   else
     IO.eprintln "✗ some zlib ByteArray codegen checks failed"
+  -- === Mutable struct codegen test ===
+  IO.println "\n=== Mutable struct codegen test ==="
+  let msPath2 := mutableStructBindings.headerPath
+  let msSrc2 ← IO.FS.readFile msPath2
+  let msToks2 ← IO.ofExcept (tokenize msSrc2)
+  let msHeader2 ← IO.ofExcept (parseHeader msToks2)
+  let msLean2 ← IO.ofExcept (emitLeanModule mutableStructBindings msHeader2)
+  let msShim2 ← IO.ofExcept (emitShim mutableStructBindings msHeader2)
+  IO.println msLean2
+  IO.println msShim2
+  let mut msOk2 := true
+  let msChecks2 := #[
+    -- Wrapper struct
+    ("lean_my_stream_wrapper_t", "wrapper typedef emitted"),
+    -- Alloc function
+    ("lean_my_stream_alloc", "alloc function emitted"),
+    -- ByteArray input: lean_sarray_cptr
+    ("lean_sarray_cptr", "byteArrayInput: lean_sarray_cptr present"),
+    -- ByteArray output: lean_alloc_sarray
+    ("lean_alloc_sarray(1,", "byteArrayOutput: lean_alloc_sarray present"),
+    -- Getter for totalIn (read-only scalar)
+    ("lean_my_stream_get_totalIn", "scalar getter: totalIn"),
+    -- Setter for level (read-write scalar)
+    ("lean_my_stream_set_level", "scalar setter: level"),
+    -- String getter for msg
+    ("lean_my_stream_get_msg", "string getter: msg"),
+    -- External class
+    ("get_my_stream_class", "external class getter"),
+    -- Finalizer calls my_stream_end
+    ("my_stream_end", "finalizer calls my_stream_end"),
+    -- Constants
+    ("def MY_CONST : Int32 := 42", "constant def emitted in Lean")
+  ]
+  for (pattern, desc) in msChecks2 do
+    if (msShim2.splitOn pattern).length > 1 ||
+       (msLean2.splitOn pattern).length > 1 then
+      IO.println s!"  ✓ {desc}"
+    else
+      IO.eprintln s!"  ✗ {desc} — pattern not found"
+      msOk2 := false
+  -- Check Lean module patterns
+  let msLeanChecks2 := #[
+    ("opaque MyStream", "opaque MyStream declared"),
+    ("MyStream.alloc", "alloc declared in Lean")
+  ]
+  for (pattern, desc) in msLeanChecks2 do
+    if (msLean2.splitOn pattern).length > 1 then
+      IO.println s!"  ✓ {desc}"
+    else
+      IO.eprintln s!"  ✗ {desc} — pattern not found"
+      msOk2 := false
+  -- Compile the shim
+  let msShimFile2 : System.FilePath := "/tmp/mutable-struct-shim.c"
+  IO.FS.writeFile msShimFile2 msShim2
+  let msOut2 ← IO.Process.output {
+    cmd := "cc"
+    args := #["-fsyntax-only", "-I", leanIncPath,
+              "-I", "test",
+              msShimFile2.toString]
+  }
+  if msOut2.exitCode = 0 then
+    IO.println "  ✓ mutable struct shim compiles (cc -fsyntax-only)"
+  else
+    IO.eprintln s!"  ✗ mutable struct shim compile failed (exit {msOut2.exitCode}):"
+    IO.eprintln msOut2.stderr
+    msOk2 := false
+  if msOk2 then
+    IO.println "✓ all mutable struct checks passed"
+  else
+    IO.eprintln "✗ some mutable struct checks failed"
+  -- === Zlib direct binding test (preprocessor + mutable struct + constants) ===
+  IO.println "\n=== Zlib direct binding test ==="
+  let zlibDirectSrc ← readHeader zlibDirectBindings
+  IO.println s!"  preprocessed source: {zlibDirectSrc.length} bytes"
+  let zlibDirectToks ← IO.ofExcept (tokenize zlibDirectSrc)
+  IO.println s!"  tokenized: {zlibDirectToks.size} tokens"
+  let zlibDirectHeader ← IO.ofExcept (parseHeader zlibDirectToks)
+  IO.println s!"  parsed {zlibDirectHeader.decls.size} decls from preprocessed zlib.h"
+  let zlibDirectLean ← IO.ofExcept (emitLeanModule zlibDirectBindings zlibDirectHeader)
+  let zlibDirectShim ← IO.ofExcept (emitShim zlibDirectBindings zlibDirectHeader)
+  IO.println s!"  generated Lean: {zlibDirectLean.length} bytes"
+  IO.println s!"  generated C shim: {zlibDirectShim.length} bytes"
+  -- Pattern checks
+  let mut zdOk := true
+  let zdChecks := #[
+    -- Mutable struct wrapper
+    ("lean_z_stream_wrapper_t", "ZStream wrapper typedef in shim"),
+    ("lean_z_stream_alloc", "ZStream alloc in shim"),
+    ("get_z_stream_class", "ZStream external class getter"),
+    -- Constants in Lean
+    ("def Z_OK : Int32 := 0", "Z_OK constant in Lean"),
+    ("def Z_FINISH : Int32 := 4", "Z_FINISH constant in Lean"),
+    ("def MAX_WBITS : Int32 := 15", "MAX_WBITS constant in Lean"),
+    -- Opaque type
+    ("opaque ZStream", "opaque ZStream in Lean"),
+    -- Functions
+    ("opaque deflate", "deflate function in Lean"),
+    ("opaque inflate", "inflate function in Lean")
+  ]
+  for (pattern, desc) in zdChecks do
+    if (zlibDirectShim.splitOn pattern).length > 1 ||
+       (zlibDirectLean.splitOn pattern).length > 1 then
+      IO.println s!"  ✓ {desc}"
+    else
+      IO.eprintln s!"  ✗ {desc} — pattern not found"
+      zdOk := false
+  -- Compile the shim against real zlib.h
+  let zdShimFile : System.FilePath := "/tmp/zlib-direct-shim.c"
+  IO.FS.writeFile zdShimFile zlibDirectShim
+  let zdOut ← IO.Process.output {
+    cmd := "cc"
+    args := #["-fsyntax-only", "-I", leanIncPath,
+              "-I/opt/homebrew/opt/zlib/include",
+              zdShimFile.toString]
+  }
+  if zdOut.exitCode = 0 then
+    IO.println "  ✓ zlib direct shim compiles (cc -fsyntax-only)"
+  else
+    IO.eprintln s!"  ✗ zlib direct shim compile failed (exit {zdOut.exitCode}):"
+    IO.eprintln zdOut.stderr
+    zdOk := false
+  if zdOk then
+    IO.println "✓ all zlib direct binding checks passed"
+  else
+    IO.eprintln "✗ some zlib direct binding checks failed"
