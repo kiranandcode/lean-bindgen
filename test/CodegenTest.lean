@@ -2,10 +2,12 @@ import LeanBindgen.C.Token
 import LeanBindgen.C.Parser
 import LeanBindgen.Codegen
 import Examples.ClingoSignature
+import Examples.ClingoSignatureDSL
 import Examples.ClingoFull
 import Examples.CleangoProject
 import Examples.ZlibBindings
 import Examples.ZlibDirect
+import Examples.ZlibDirectDSL
 
 open LeanBindgen LeanBindgen.C LeanBindgen.Codegen
 
@@ -662,3 +664,39 @@ def main : IO Unit := do
     IO.println "✓ all zlib direct binding checks passed"
   else
     IO.eprintln "✗ some zlib direct binding checks failed"
+
+  -- === DSL equivalence test ===
+  IO.println "\n=== DSL equivalence test ==="
+  let dslLean ← IO.ofExcept (emitLeanModule clingoSignatureBindingsDSL header)
+  let dslShim ← IO.ofExcept (emitShim clingoSignatureBindingsDSL header)
+  -- Compare outputs — they should be identical modulo the module name
+  -- (DSL uses SignatureDSL, original uses Signature). Replace to normalize.
+  let normDslLean := dslLean.replace "SignatureDSL" "Signature"
+  let normDslShim := dslShim.replace "signature-dsl-shim" "signature-shim"
+  if normDslLean == leanText then
+    IO.println "  ✓ DSL Lean output matches record-based output"
+  else
+    IO.eprintln "  ✗ DSL Lean output differs from record-based output"
+    IO.eprintln s!"    DSL length: {normDslLean.length}, Ref length: {leanText.length}"
+    -- Find first difference
+    let dslLines := (normDslLean.splitOn "\n").toArray
+    let refLines := (leanText.splitOn "\n").toArray
+    for i in [0:Nat.min dslLines.size refLines.size] do
+      if dslLines[i]! != refLines[i]! then
+        IO.eprintln s!"    first diff at line {i+1}:"
+        IO.eprintln s!"      DSL: {dslLines[i]!}"
+        IO.eprintln s!"      Ref: {refLines[i]!}"
+        break
+  if normDslShim == shimText then
+    IO.println "  ✓ DSL C shim output matches record-based output"
+  else
+    IO.eprintln "  ✗ DSL C shim output differs from record-based output"
+    IO.eprintln s!"    DSL length: {normDslShim.length}, Ref length: {shimText.length}"
+    let dslLines := (normDslShim.splitOn "\n").toArray
+    let refLines := (shimText.splitOn "\n").toArray
+    for i in [0:Nat.min dslLines.size refLines.size] do
+      if dslLines[i]! != refLines[i]! then
+        IO.eprintln s!"    first diff at line {i+1}:"
+        IO.eprintln s!"      DSL: {dslLines[i]!}"
+        IO.eprintln s!"      Ref: {refLines[i]!}"
+        break

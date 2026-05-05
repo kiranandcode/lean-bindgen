@@ -1,83 +1,229 @@
 # lean-bindgen
 
-Generate Lean 4 bindings — `@[extern]` declarations on the Lean side
-plus a C shim that bridges Lean's runtime ABI — from a C header and a
-small annotation file.
+Generate Lean 4 FFI bindings from C headers. Write a concise DSL spec,
+get `@[extern]` declarations + a C shim that handles all the marshalling.
 
-Validated end-to-end against libclingo: the full clingo API (167+ types,
-66 functions, including recursive AST types, tagged unions, callbacks,
-event dispatchers, and variadic AST builders) is auto-generated and
-structurally verified against a hand-written reference binding. 32
-runtime assertions, all green, no leaks beyond Lean/clingo runtime
-baselines.
+## Quick start
 
-The codegen handles the mechanical work (extern decls, marshalling
-glue, struct/enum/union conversion, callback trampolines, memory
-management) and leaves the ergonomic API layer — renaming, default
-args, type-class instances, custom `match` elaborators — to be
-hand-written on top.
+```lean
+import LeanBindgen
 
-## How it works
+open LeanBindgen LeanBindgen.DSL
 
-```
-       C header (e.g. clingo.h)
-              │
-              ▼
-   ┌─────────────────────┐
-   │ tokenize → parse    │   pure-Lean recursive-descent parser;
-   │ → flat semantic AST │   handles the declaration subset of C
-   │ (LeanBindgen.C.*)   │   (typedefs, structs, unions, enums,
-   └──────────┬──────────┘   function prototypes, function-pointer
-              │              typedefs, plus a small preprocessor
-              ▼              for #define / extern "C" blocks)
-        CHeader value
-              │
-              │   plus a Bindings record describing per-decl
-              │   mappings (TypeAnno + FunctionAnno entries)
-              ▼
-   ┌─────────────────────┐
-   │ emitLeanModule      │   Lean source: type definitions
-   │ emitShim            │   (def/structure/inductive/opaque) +
-   │ (LeanBindgen.       │   `@[extern]` opaques. C source: per-
-   │  Codegen)           │   type marshalling helpers + per-function
-   └──────────┬──────────┘   shim entry points.
-              │
-              ▼
-    Generated.<module>.lean    (committed to your project)
-    csrc/<lib>-shim.c          (built into an extern_lib via Lake)
+def myBindings : Bindings := c_bindings {
+  header "vendor/mylib.h"
+  module Generated.MyLib
+  out_dir "src/Generated"
+  shim "csrc/mylib-shim.c"
+  lib "mylib"
+
+  -- Scalar newtype: wraps a C typedef as a Lean def
+  scalar mylib_handle_t => Handle : UInt64
+
+  -- Enum: maps a C enum to a Lean inductive
+  enum mylib_status_t => Status tag mylib_status
+    | mylib_status_ok => ok
+    | mylib_status_fail => fail
+
+  -- Opaque pointer: GC-released via finalizer
+  opaque mylib_context_t => Context freed_by mylib_context_free
+
+  -- Struct: auto-marshalled field-by-field
+  struct mylib_config_t => Config tag mylib_config
+    | name => name
+    | value => value
+    | flags => flags
+
+  -- Functions
+  cfn mylib_open => open out[1] on_error string mylib_last_error
+  cfn mylib_close => close +io
+  cfn mylib_status => status
+  cfn mylib_version => version multi_out[0, 1, 2]
+
+  -- Constants
+  cconst MYLIB_DEFAULT_FLAGS : UInt32 := "0"
+}
 ```
 
-Downstream consumers reference the generated module like any normal
-Lean library and link the shim alongside the underlying C library —
-the Lake helper at [`LeanBindgen/Lake.lean`](./LeanBindgen/Lake.lean)
-provides a reusable `extern_lib` stanza for that.
+That's it. The `c_bindings { ... }` macro expands to the same `Bindings`
+record the codegen consumes — no runtime cost, just less boilerplate.
+
+## DSL reference
+
+### Header fields
+
+| Syntax | Purpose |
+|--------|---------|
+| `header "path"` | Path to C header file |
+| `module My.Module` | Lean module name for generated code |
+| `out_dir "path"` | Output directory for generated `.lean` |
+| `shim "path"` | Output path for generated C shim |
+| `lib "name"` | Library prefix (used in extern symbol names) |
+| `preprocessor ["-DFOO", "-Ibar"]` | Preprocessor args (runs `cc -E -P`) |
+
+### Type declarations
+
+```lean
+-- Scalar newtype (C typedef → Lean def)
+scalar c_type_t => LeanName : UInt64    -- also UInt32, UInt16, UInt8, Int32, Int64
+
+-- Inductive enum
+enum c_enum_t => LeanEnum tag c_enum_tag_name
+  | c_variant_1 => leanVariant1
+  | c_variant_2 => leanVariant2
+
+-- Opaque pointer with GC finalizer
+opaque c_type_t => LeanType freed_by c_type_free
+
+-- Opaque pointer (borrowed, no finalizer)
+opaque c_type_t => LeanType borrowed
+
+-- Struct record
+struct c_struct_t => LeanStruct tag c_struct_tag
+  | c_field_1 => leanField1
+  | c_field_2 => leanField2
+
+-- Callback typedef (Lean closure from C function pointer)
+callback c_callback_t => LeanCallback
+
+-- Bitfield struct (fields become Bool)
+bitfield c_flags_t => LeanFlags tag c_flags_tag
+  | c_flag_a => flagA
+  | c_flag_b => flagB
+
+-- Escape hatch: raw TypeAnno record
+type_raw { cName := "...", lean := "...", mapping := ... }
+```
+
+### Function declarations
+
+```lean
+-- Direct call (pure or +io)
+cfn c_function => leanName
+cfn c_function => leanName +io
+
+-- Out-param with bool status: bool fn(..., T *out) → IO (Except E T)
+cfn c_function => leanName out[N] on_error string c_error_fn
+cfn c_function => leanName out[N] on_error enum c_code LeanError c_msg_fn
+cfn c_function => leanName out[N] on_error tuple c_code LeanError c_msg_fn
+
+-- Void out-param: void fn(..., T *out) → T
+cfn c_function => leanName void_out[N]
+
+-- Option out-param: bool fn(..., T *out) → Option T
+cfn c_function => leanName option_out[N]
+
+-- Option out-array: bool fn(..., T **out, size_t *n) → Option (Array T)
+cfn c_function => leanName option_out_array[N, M]
+
+-- Multi out-param: void fn(T1 *a, T2 *b) → T1 × T2
+cfn c_function => leanName multi_out[0, 1, 2]
+
+-- Bool status (no out-param): bool fn(...) → Except E Unit
+cfn c_function => leanName bool_status on_error string c_error_fn
+
+-- Caller-allocates (two-step size+fill): fn_size + fn_fill → String or Array
+cfn c_function => leanName caller_alloc "c_size_fn" [N, M] on_error string c_error_fn
+
+-- Escape hatch
+fn_raw { cName := "...", lean := "...", style := ... }
+```
+
+### Function modifiers
+
+Append after the style:
+
+| Modifier | Effect |
+|----------|--------|
+| `+io` | Wrap return in `IO` |
+| `+nullable_return` | `char const *` → `Option String` |
+| `+nullable_out` | Out-param may be NULL → `Option T` |
+| `callback_data [N]` | Index N is user-data for preceding callback |
+| `array_pairs [(N, M)]` | Params N,M are (ptr, size) → `Array T` |
+| `byte_pairs [(N, M)]` | Like array_pairs but for `ByteArray` |
+| `retained_params [N]` | Lean must inc-ref (C retains pointer) |
+| `borrowed_params [N]` | Force `@&` on param N |
+| `extern_sym "name"` | Override `@[extern "..."]` symbol |
+
+### Constants
+
+```lean
+cconst MY_CONST : Int32 := "42"
+cconst MY_FLAG : UInt32 := "1"
+```
+
+## Real-world example
+
+Here's a real binding to libclingo's signature API (~60 lines DSL vs ~120 lines records):
+
+```lean
+import LeanBindgen
+
+open LeanBindgen LeanBindgen.DSL
+
+def clingoBindings : Bindings := c_bindings {
+  header "/opt/homebrew/include/clingo.h"
+  module Generated.Clingo
+  out_dir ".lake/build/generated"
+  shim "csrc/clingo-shim.c"
+  lib "clingo"
+  preprocessor ["-DCLINGO_NO_VISIBILITY", "-I/opt/homebrew/include"]
+
+  scalar clingo_signature_t => Signature : UInt64
+  scalar clingo_symbol_t => Symbol : UInt64
+
+  enum clingo_error_t => Error tag clingo_error
+    | clingo_error_success => success
+    | clingo_error_runtime => runtime
+    | clingo_error_logic => logic
+    | clingo_error_bad_alloc => badAlloc
+    | clingo_error_unknown => unknown
+
+  opaque clingo_control_t => Control freed_by clingo_control_free
+
+  struct clingo_location_t => Location tag clingo_location
+    | begin_file => beginFile
+    | end_file => endFile
+    | begin_line => beginLine
+    | end_line => endLine
+    | begin_column => beginColumn
+    | end_column => endColumn
+
+  enum clingo_warning_t => Warning tag clingo_warning
+    | clingo_warning_operation_undefined => operationUndefined
+    | clingo_warning_runtime_error => runtimeError
+    | clingo_warning_atom_undefined => atomUndefined
+    | clingo_warning_file_included => fileIncluded
+    | clingo_warning_variable_unbounded => variableUnbounded
+    | clingo_warning_global_variable => globalVariable
+    | clingo_warning_other => other
+
+  callback clingo_logger_t => Logger
+
+  cfn clingo_signature_create => mk out[3] on_error string clingo_error_message
+  cfn clingo_signature_name => name
+  cfn clingo_signature_arity => arity
+  cfn clingo_signature_is_positive => isPositive
+  cfn clingo_signature_is_negative => isNegative
+  cfn clingo_error_code => errorCode +io
+  cfn clingo_error_string => errorString
+  cfn clingo_control_interrupt => interrupt +io
+  cfn clingo_parse_term => parseTerm out[4] on_error string clingo_error_message callback_data [2]
+  cfn clingo_symbol_create_function => mkFun out[4] on_error string clingo_error_message array_pairs [(1, 2)]
+}
+```
 
 ## What gets generated
 
-For an annotation entry like
+For `cfn clingo_signature_create => mk out[3] on_error string clingo_error_message`:
 
-```lean
-{ cName := "clingo_signature_create"
-  lean  := "mk"
-  style := .outParamBoolStatus 3 (.string "clingo_error_message") }
-```
-
-paired with the C declaration
-
-```c
-bool clingo_signature_create(char const *name, uint32_t arity,
-                             bool positive, clingo_signature_t *signature);
-```
-
-the codegen emits, on the Lean side:
-
+**Lean side:**
 ```lean
 @[extern "lean_clingo_signature_create"]
 opaque mk : @& String → UInt32 → Bool → IO (Except String Signature)
 ```
 
-and on the C side:
-
+**C side:**
 ```c
 LEAN_EXPORT lean_obj_res lean_clingo_signature_create(
     b_lean_obj_arg name, uint32_t arity, uint8_t positive) {
@@ -98,274 +244,9 @@ LEAN_EXPORT lean_obj_res lean_clingo_signature_create(
 }
 ```
 
-That's the boring half of binding work that the user no longer
-writes by hand.
+## Integration with Lake
 
-## Safety
-
-The generated shim applies several safety measures by default:
-
-- **Thread-safe class registration** — opaque-type external classes
-  and callback wrapper classes are initialised via `pthread_once`,
-  eliminating the TOCTOU race on concurrent first use.
-- **Malloc overflow guards** — every `malloc(sizeof(T) * n)` site is
-  preceded by a `SIZE_MAX / sizeof(T)` check that panics on overflow.
-- **String field ownership** — struct `toC` helpers use `strdup()` for
-  string fields (not a borrowed `lean_string_cstr` pointer), and the
-  matching `free_<type>` helpers release them.
-- **Ctor limit validation** — codegen errors out if a struct or tagged
-  union exceeds `lean_alloc_ctor` limits (tag > 243, num_objs >= 256,
-  scalar_sz >= 1024).
-- **Callback arity check** — codegen errors if a callback typedef has
-  more than 16 parameters (the `lean_apply_N` ceiling).
-- **Unsupported-pattern panics** — array returns, array out-params,
-  and array-in-callback patterns that aren't yet implemented call
-  `lean_internal_panic` with a descriptive message instead of silently
-  returning `lean_box(0)`.
-
-## Coverage
-
-Nine `TypeMapping` kinds and eight `FunctionStyle` kinds, plus
-per-function `borrowedParams` / `callbackUserDataParams` /
-`retainedParams` / `arrayPairs` / `nullableOutParam` /
-`nullableReturn` / `externSymbol` overrides.
-
-### Type mappings
-
-| Type mapping | Generates |
-|---|---|
-| `scalarNewtype` | `def Foo := UIntN deriving Repr, Inhabited` |
-| `inductiveEnum` | Lean inductive + cidx ↔ C-int conversion helpers |
-| `opaquePointer` | `opaque Foo : Type` + `lean_external_class` registration with GC finalizer |
-| `structRecord` | Lean `structure` + field-by-field `toLean` / `toC` marshallers (handles nested structs, array fields, Lean ctor layout reordering) |
-| `callback` | `def Foo := T1 → T2 → IO R` + trampoline that marshals C args → Lean closure invocation via `lean_apply_*` (supports nested callbacks, non-void returns, reverse trampolines) |
-| `taggedUnion` | Lean `inductive` from C struct + tag enum + union; per-variant C ↔ Lean switch dispatch, deep free helpers |
-| `bitfieldStruct` | Lean `structure` of `Bool` fields + bitwise pack/unpack helpers |
-| `eventCallback` | Lean `inductive` for event variants + callback `def` alias + trampoline with switch dispatch on event discriminant (supports opaque ptrs, deref-mapped structs, ptr arrays, configurable `successReturnValue` and `outParamTypes`) |
-| `variadicBuilder` | Fixed-arity C wrappers for variadic builder functions (e.g. `clingo_ast_build(type, &out, ...)`). One C shim per constructor, marshalling location/string/ast/array args. Supports opaque AST node construction. |
-
-### Function styles
-
-| Function style | Lean signature | C pattern |
-|---|---|---|
-| `direct` | `T₁ → ... → IO R` or pure | Plain call, marshal return |
-| `outParamBoolStatus` | `IO (Except E T)` | `bool fn(..., T *out)` → `Except.ok`/`Except.error` |
-| `boolStatus` | `IO (Except E Unit)` | `bool fn(...)` → `Except.ok ()`/`Except.error` |
-| `optionOutParam` | `IO (Option T)` | `bool fn(..., T *out)` → `some`/`none` |
-| `voidOutParam` | `IO T` or `T` | `void fn(..., T *out)` → unwrap |
-| `optionOutArray` | `IO (Option (Array T))` | `bool fn(..., T const **out, size_t *n)` |
-| `callerAllocates` | `IO (Except E (Array T))` or `String` | Two-step: query size, alloc, fill. Supports `nullTerminated` flag and `resultKind` override. |
-| `multiOutParam` | `IO (T₁ × T₂ × T₃)` or pure | `void fn(T₁ *a, T₂ *b, T₃ *c)` → right-nested Prod |
-
-### Error return types
-
-`outParamBoolStatus`, `boolStatus`, and `callerAllocates` accept an
-`ErrorReturn` specifying how to surface the error:
-
-| `ErrorReturn` | Lean type | Source |
-|---|---|---|
-| `.string "error_message_fn"` | `Except String T` | Calls `error_message_fn()` for message |
-| `.enum "c_error_code" "LeanError"` | `Except LeanError T` | Maps C error enum to Lean inductive |
-| `.tuple "c_error_code" "LeanError" "c_message_fn"` | `Except (LeanError × String) T` | Both enum + message |
-
-### Additional per-function annotations
-
-| Annotation | Purpose |
-|---|---|
-| `borrowedParams` | Indices of params passed as `@&` (borrowed reference) |
-| `retainedParams` | Indices where Lean must `lean_inc` (C retains the pointer) |
-| `callbackUserDataParams` | Indices of `(fn_ptr, void *user_data)` pairs → closure passing |
-| `arrayPairs` | `(ptr_idx, size_idx)` pairs → `@& Array T` on Lean side |
-| `nullableReturn` | Wrap nullable `char const *` return in `Option String` |
-| `nullableOutParam` | Wrap nullable out-param pointer in `Option` |
-| `externSymbol` | Override the generated `@[extern "..."]` symbol name |
-
-## Full clingo API example
-
-[`examples/Examples/ClingoFull.lean`](./examples/Examples/ClingoFull.lean)
-annotates the complete libclingo API: 168+ type annotations (7 scalar
-newtypes, 22 enums, 7 opaque pointers, 3 bitfield structs, 4 callbacks,
-1 event callback, 1 variadic builder with 40 constructors, 117+ struct
-records and tagged unions) and 66 function annotations covering every
-function style above.
-
-The generated output is ~170 KB of C shim and ~19 KB of Lean module.
-A structural comparison (`test/compare_shims.py`) against the
-hand-written [cleango](https://github.com/kiranandcode/cleango) binding
-confirms functional equivalence: 134 matched function pairs (93
-identical, 41 with expected design-level naming differences, 0 real
-divergences).
-
-## Project layout
-
-```
-lean-bindgen/
-├── lakefile.lean
-├── lean-toolchain                       v4.29.0-rc6
-├── LeanBindgen.lean                     top-level umbrella
-├── LeanBindgen/
-│   ├── Lake.lean                        reusable extern_lib helper
-│   ├── Annotation.lean                  Bindings / TypeAnno / FunctionAnno
-│   ├── Codegen.lean                     the emitter (~3000 lines)
-│   └── C/
-│       ├── Ast.lean                     flat semantic AST
-│       ├── Pretty.lean                  AST → C source (K&R declarators)
-│       ├── Token.lean                   tokenizer
-│       └── Parser.lean                  recursive-descent header parser
-├── examples/
-│   ├── Examples.lean                    umbrella for example annotations
-│   ├── Examples/
-│   │   ├── ClingoSignature.lean         small example bindings spec
-│   │   ├── ClingoFull.lean              full clingo API annotation
-│   │   └── CleangoProject.lean          cleango project codegen driver
-│   ├── clingo-signature-runtime/        sub-package: link-and-run validation
-│   │   ├── lakefile.lean                inlined buildCBinding stanza,
-│   │   │                                links /opt/homebrew/lib/libclingo
-│   │   ├── Generated/Signature.lean     ← generated by test-codegen
-│   │   ├── csrc/signature-shim.c        ← generated by test-codegen
-│   │   └── LinkTest.lean                runtime test exe (32 assertions)
-│   └── cleango/                         full cleango binding (auto-generated shim)
-│       ├── Clingo/Generated/            generated Lean module + C shim
-│       ├── Clingo/                      hand-written wrapper layer
-│       │   ├── Control.lean             control, solve, program builder
-│       │   ├── Lang.lean                add_clingo_query! DSL macro
-│       │   └── AstConvert.lean          AST DSL → opaque AstNode via builders
-│       └── test/TestAll.lean            string API + DSL macro tests
-├── test/
-│   ├── PrettyTest.lean                  AST → C round-trip (12 cases)
-│   ├── TokenTest.lean                   tokenizer (8 cases)
-│   ├── ParserTest.lean                  parse → pretty round-trip (8 cases)
-│   ├── Soak.lean                        full clingo.h soak (414 decls)
-│   ├── CodegenTest.lean                 6 codegen test suites + cc -fsyntax-only
-│   └── compare_shims.py                 structural comparison vs hand-written shim
-├── reference/
-│   ├── cleango/                         hand-written ground truth
-│   └── c-parser-upstream/               opencompl C-parser (reference)
-├── PLAN.md                              gap analysis & roadmap
-└── README.md
-```
-
-## Running the tests
-
-Lean 4.29.0-rc6 is required (auto-installed by elan from the
-`lean-toolchain` file). Most tests are pure Lean; the runtime
-validation needs libclingo and clang.
-
-### Unit tests
-
-```sh
-# Pretty-printer round-trip (function-pointer typedefs, const placement,
-# bitfield structs, variadic prototypes, …)
-lake build test-pretty && ./.lake/build/bin/test-pretty
-
-# Tokenizer (numeric forms, comments, preprocessor passthrough, …)
-lake build test-token  && ./.lake/build/bin/test-token
-
-# Parser → pretty-printer round-trip on representative declarations
-lake build test-parser && ./.lake/build/bin/test-parser
-```
-
-### Soak the parser against `clingo.h`
-
-```sh
-lake build soak && ./.lake/build/bin/soak
-# parses 414 decls; round-trips parse → print → re-parse with the
-# same decl count.
-```
-
-### Drive codegen against `clingo.h`
-
-```sh
-lake build test-codegen && ./.lake/build/bin/test-codegen
-# Runs 6 test suites:
-#   1. Main codegen (signature subset, cc -fsyntax-only)
-#   2. Tagged union codegen (AST term nodes)
-#   3. Mixed-scalar struct layout (ctor field reordering)
-#   4. Deep-struct codegen (malloc/deref/free helpers)
-#   5. Recursive AST codegen (SCC ordering, forward decls)
-#   6. Full cleango codegen (167+ types, 66 functions, variadic builders, ~170KB shim)
-```
-
-### End-to-end link-and-run (needs libclingo)
-
-```sh
-brew install clingo                 # 5.8.0 at time of writing
-lake build test-codegen && ./.lake/build/bin/test-codegen   # regenerate
-cd examples/clingo-signature-runtime
-lake build && ./.lake/build/bin/link-test
-# 32 assertions, all green. Exercises signatures, enums, opaque
-# controls with GC finalizers (100× create/drop), logger callback
-# trampolines, location struct round-trips, and array+size pairs.
-```
-
-### Cleango full binding (needs libclingo)
-
-```sh
-cd examples/cleango
-lake build test_all && ./.lake/build/bin/test_all
-# Tests both string API and DSL macro (add_clingo_query!) paths.
-# The DSL macro constructs opaque AST nodes via the generated
-# variadic builder shims, then feeds them through the program builder.
-lake build test_ffi && ./.lake/build/bin/test_ffi
-# FFI-level tests: symbols, signatures, control lifecycle.
-```
-
-### Memory check
-
-```sh
-leaks --atExit -- ./.lake/build/bin/link-test | grep '^Process'
-# Expect: 13 leaks for 288 total leaked bytes
-# (Baseline 12/256 from Lean's runtime statics; the +1/+32 is
-#  libclingo's thread-local error buffer. Constant whether we
-#  allocate 0, 1, or 100 Controls.)
-```
-
-### Structural comparison against hand-written shim
-
-```sh
-python3 test/compare_shims.py
-# Uses clang JSON AST to structurally compare the generated shim
-# against the hand-written cleango shim. Reports matched pairs,
-# expected design differences, and any real divergences.
-```
-
-## Defining a new binding
-
-A `Bindings` record is just data:
-
-```lean
-import LeanBindgen.Annotation
-open LeanBindgen
-
-def myBindings : Bindings := {
-  headerPath  := "vendor/mylib.h"
-  leanModule  := `Generated.MyLib
-  outDir      := "src/Generated"
-  shimPath    := "csrc/mylib-shim.c"
-  libPrefix   := "mylib"
-
-  types := #[
-    { cName := "mylib_handle_t", lean := "Handle",
-      mapping := .opaquePointer "mylib_close" },
-    { cName := "mylib_status_t", lean := "Status",
-      mapping := .inductiveEnum {
-        enumTag  := "mylib_status"
-        variants := #[("MYLIB_OK", "ok"), ("MYLIB_FAIL", "fail")]
-      } }
-  ]
-
-  functions := #[
-    { cName := "mylib_open", lean := "open"
-      style := .outParamBoolStatus 1 (.string "mylib_last_error") },
-    { cName := "mylib_status", lean := "status" }
-  ]
-}
-```
-
-A small driver — see `test/CodegenTest.lean` — parses the header,
-emits the Lean module + shim text, and writes them to disk. The
-generated module gets compiled like any Lean lib; the shim gets
-linked via [`LeanBindgen.Lake.buildCBinding`](./LeanBindgen/Lake.lean):
+Link the generated shim in your `lakefile.lean`:
 
 ```lean
 extern_lib mylib_shim pkg :=
@@ -375,31 +256,119 @@ extern_lib mylib_shim pkg :=
   }
 ```
 
-Lake (as of v4.29) doesn't let downstream lakefiles import modules
-from required deps, so the helper's body is also published as a
-self-contained stanza you can paste directly into your own
-`lakefile.lean` (see
-[`examples/clingo-signature-runtime/lakefile.lean`](./examples/clingo-signature-runtime/lakefile.lean)).
+See [`LeanBindgen/Lake.lean`](./LeanBindgen/Lake.lean) for the helper, or
+[`examples/clingo-signature-runtime/lakefile.lean`](./examples/clingo-signature-runtime/lakefile.lean)
+for a self-contained example.
 
-## Status
+## How it works
 
-| Component | State |
+```
+       C header (e.g. clingo.h)
+              │
+              ▼
+   ┌─────────────────────┐
+   │ tokenize → parse    │   pure-Lean recursive-descent parser
+   │ → flat semantic AST │   for C declarations
+   └──────────┬──────────┘
+              │
+              │   + Bindings spec (DSL or records)
+              ▼
+   ┌─────────────────────┐
+   │ emitLeanModule      │   Lean types + @[extern] opaques
+   │ emitShim            │   C marshalling shim
+   └──────────┬──────────┘
+              │
+              ▼
+    Generated/<Module>.lean
+    csrc/<lib>-shim.c
+```
+
+## Safety
+
+The generated shim includes:
+
+- **Thread-safe class registration** via `pthread_once`
+- **Malloc overflow guards** (`SIZE_MAX / sizeof(T)` checks)
+- **String field ownership** (`strdup` + matching `free_<type>` helpers)
+- **Ctor limit validation** (tag, num_objs, scalar_sz bounds)
+- **Callback arity check** (≤16 params for `lean_apply_N`)
+
+## Coverage
+
+### Type mappings
+
+| DSL syntax | Generates |
 |---|---|
-| Tokenizer | working; 8/8 tests |
-| Parser | working; 8/8 tests; clears full clingo.h (414 decls) |
-| Pretty-printer | working; 12/12 tests |
-| Codegen — Lean | working; 9 type mappings, 8 function styles |
-| Codegen — shim | same; thread-safe init, overflow guards, strdup strings; passes `cc -fsyntax-only` |
-| Full clingo coverage | 167+ types, 66 functions, 40 variadic builders; ~170 KB shim compiles clean |
-| Structural verification | 134/134 matched pairs equivalent to hand-written cleango |
-| Runtime validation | 32/32 assertions against libclingo 5.8.0 |
-| Memory | constant 13/288-byte baseline under `leaks` |
+| `scalar` | `def Foo := UIntN deriving Repr, Inhabited` |
+| `enum` | Lean inductive + cidx↔C-int conversion |
+| `opaque` | `opaque Foo : Type` + external class with GC finalizer |
+| `struct` | Lean `structure` + toLean/toC field marshallers |
+| `callback` | `def Foo := ... → IO R` + trampoline |
+| `bitfield` | Lean `structure` of `Bool` + bitwise pack/unpack |
+| `type_raw` | Tagged unions, event callbacks, mutable structs, variadic builders |
+
+### Function styles
+
+| DSL syntax | Lean signature |
+|---|---|
+| `cfn f => g` | `T₁ → ... → R` (pure) |
+| `cfn f => g +io` | `T₁ → ... → IO R` |
+| `out[N] on_error ...` | `IO (Except E T)` |
+| `bool_status on_error ...` | `IO (Except E Unit)` |
+| `void_out[N]` | `T` or `IO T` |
+| `option_out[N]` | `IO (Option T)` |
+| `option_out_array[N, M]` | `IO (Option (Array T))` |
+| `multi_out[0, 1, 2]` | `T₁ × T₂ × T₃` |
+| `caller_alloc "size_fn" [N, M]` | `IO (Except E String)` or `Array` |
+
+## Running the tests
+
+```sh
+# All codegen tests (10 suites including DSL equivalence)
+lake build test-codegen && ./.lake/build/bin/test-codegen
+
+# Unit tests
+lake build test-pretty && ./.lake/build/bin/test-pretty
+lake build test-token  && ./.lake/build/bin/test-token
+lake build test-parser && ./.lake/build/bin/test-parser
+
+# Parser soak against clingo.h (414 decls)
+lake build soak && ./.lake/build/bin/soak
+
+# End-to-end runtime (needs libclingo)
+brew install clingo
+lake build test-codegen && ./.lake/build/bin/test-codegen
+cd examples/clingo-signature-runtime
+lake build && ./.lake/build/bin/link-test    # 32 assertions
+```
+
+## Project layout
+
+```
+lean-bindgen/
+├── LeanBindgen/
+│   ├── DSL.lean              ← the c_bindings macro
+│   ├── Annotation.lean       Bindings / TypeAnno / FunctionAnno types
+│   ├── Codegen.lean          emitter (~3600 lines)
+│   ├── Lake.lean             reusable extern_lib helper
+│   └── C/                    tokenizer + recursive-descent parser
+├── examples/
+│   ├── Examples/
+│   │   ├── ClingoSignatureDSL.lean   DSL example (clingo subset)
+│   │   ├── ZlibDirectDSL.lean        DSL example (zlib)
+│   │   ├── ClingoFull.lean           full clingo API (167+ types)
+│   │   └── CleangoProject.lean       complete cleango binding
+│   ├── clingo-signature-runtime/     link-and-run validation
+│   └── cleango/                      full working clingo binding
+├── test/
+│   ├── CodegenTest.lean      10 codegen test suites
+│   └── ...                   tokenizer, parser, pretty-printer tests
+└── reference/                hand-written ground truth
+```
 
 ## License
 
 The reference material under `reference/cleango/` is from
-[cleango](https://github.com/kiranandcode/cleango) (MIT). The
-opencompl C parser sources under `reference/c-parser-upstream/` are
-their own repository (see its `LICENSE` if you redistribute).
-Everything else in this project is unlicensed pending a decision —
-treat it as private until that's resolved.
+[cleango](https://github.com/kiranandcode/cleango) (MIT). Everything
+else in this project is unlicensed pending a decision — treat it as
+private until that's resolved.

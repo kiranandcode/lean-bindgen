@@ -13,6 +13,7 @@ import LeanBindgen.Gen.CShimPretty
 import LeanBindgen.Gen.LeanDecl
 import LeanBindgen.Gen.LeanDeclPretty
 import LeanBindgen.Codegen
+import LeanBindgen.DSL
 
 namespace LeanBindgen
 
