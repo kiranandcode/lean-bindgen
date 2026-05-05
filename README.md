@@ -166,6 +166,9 @@ Done!
 
 ## DSL reference
 
+> For a detailed guide with full explanations of each syntax form and what
+> it generates, see **[doc/DSL.md](./doc/DSL.md)**.
+
 ### Header fields
 
 | Syntax | Purpose |
