@@ -3,8 +3,62 @@
 Generate Lean 4 FFI bindings from C headers. Write a concise DSL spec,
 get `@[extern]` declarations + a C shim that handles all the marshalling.
 
-## Quick start
+## Getting started
 
+### 1. Create your project
+
+```sh
+mkdir my-bindings && cd my-bindings
+```
+
+Set up the toolchain and add lean-bindgen as a dependency:
+
+**`lean-toolchain`**
+```
+leanprover/lean4:v4.29.0-rc6
+```
+
+**`lakefile.lean`**
+```lean
+import Lake
+open Lake DSL System
+
+package «my-bindings»
+
+require «lean-bindgen» from git
+  "https://github.com/kiranandcode/lean-bindgen" @ "main"
+
+lean_lib Bindings where
+lean_exe generate where
+  root := `Generate
+lean_lib Generated where
+
+@[default_target]
+lean_exe demo where
+  root := `Main
+
+-- Compile the generated C shim (+ optionally the vendor library) into
+-- a static archive. Lake links this into any exe that imports Generated.
+extern_lib «mylib-shim» pkg := do
+  let leanIncDir := (← getLeanIncludeDir).toString
+  let vendorDir := (pkg.dir / "vendor").toString
+  let weakArgs := #["-I", leanIncDir, "-I", vendorDir]
+  let traceArgs := #["-fPIC"]
+  let sources : Array FilePath := #["csrc/mylib-shim.c", "vendor/mylib.c"]
+  let oJobs ← sources.mapM fun src => do
+    let oFile := pkg.buildDir / src.withExtension "o"
+    let srcJob ← inputTextFile (pkg.dir / src)
+    buildO oFile srcJob weakArgs traceArgs
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "mylib-shim") oJobs
+```
+
+> For system libraries (not vendored), replace `"vendor/mylib.c"` with
+> just the shim, and add `moreLinkArgs := #["-L/usr/lib", "-lmylib"]` to
+> the package declaration.
+
+### 2. Write your binding spec
+
+**`Bindings.lean`**
 ```lean
 import LeanBindgen
 
@@ -13,40 +67,102 @@ open LeanBindgen LeanBindgen.DSL
 def myBindings : Bindings := c_bindings {
   header "vendor/mylib.h"
   module Generated.MyLib
-  out_dir "src/Generated"
+  out_dir "Generated"
   shim "csrc/mylib-shim.c"
   lib "mylib"
 
-  -- Scalar newtype: wraps a C typedef as a Lean def
-  scalar mylib_handle_t => Handle : UInt64
+  opaque mylib_ctx_t => Context freed_by mylib_ctx_free
 
-  -- Enum: maps a C enum to a Lean inductive
-  enum mylib_status_t => Status tag mylib_status
-    | mylib_status_ok => ok
-    | mylib_status_fail => fail
-
-  -- Opaque pointer: GC-released via finalizer
-  opaque mylib_context_t => Context freed_by mylib_context_free
-
-  -- Struct: auto-marshalled field-by-field
-  struct mylib_config_t => Config tag mylib_config
-    | name => name
-    | value => value
-    | flags => flags
-
-  -- Functions
-  cfn mylib_open => open out[1] on_error string mylib_last_error
-  cfn mylib_close => close +io
-  cfn mylib_status => status
-  cfn mylib_version => version multi_out[0, 1, 2]
-
-  -- Constants
-  cconst MYLIB_DEFAULT_FLAGS : UInt32 := "0"
+  cfn mylib_create => create +io
+  cfn mylib_do_thing => doThing bool_status on_error string mylib_last_error +io
+  cfn mylib_get_value => getValue +io
 }
 ```
 
-That's it. The `c_bindings { ... }` macro expands to the same `Bindings`
-record the codegen consumes — no runtime cost, just less boilerplate.
+### 3. Write the codegen driver
+
+**`Generate.lean`**
+```lean
+import LeanBindgen
+import Bindings
+
+open LeanBindgen LeanBindgen.C LeanBindgen.Codegen
+
+def main : IO Unit := do
+  let b := myBindings
+  let src ← IO.FS.readFile b.headerPath
+  let tokens ← IO.ofExcept (tokenize src)
+  let hdr ← IO.ofExcept (parseHeader tokens)
+  IO.println s!"Parsed {hdr.decls.size} declarations from {b.headerPath}"
+
+  let leanSrc ← IO.ofExcept (emitLeanModule b hdr)
+  IO.FS.createDirAll b.outDir
+  IO.FS.writeFile s!"{b.outDir}/MyLib.lean" leanSrc
+  IO.println s!"Wrote {b.outDir}/MyLib.lean ({leanSrc.length} bytes)"
+
+  let shimSrc ← IO.ofExcept (emitShim b hdr)
+  IO.FS.createDirAll "csrc"
+  IO.FS.writeFile b.shimPath shimSrc
+  IO.println s!"Wrote {b.shimPath} ({shimSrc.length} bytes)"
+```
+
+### 4. Generate and build
+
+```sh
+# Create placeholder files so Lake can resolve targets
+mkdir -p csrc Generated
+echo '' > csrc/mylib-shim.c
+echo 'namespace Generated.MyLib end Generated.MyLib' > Generated/MyLib.lean
+
+# Fetch dependencies
+lake update
+
+# Generate the Lean module + C shim from the header
+lake exe generate
+
+# Build everything (compiles shim, links, produces executable)
+lake build
+```
+
+After the first `lake exe generate`, commit `Generated/` and `csrc/` —
+then `lake build` works without regenerating. Re-run `generate` when the
+C header changes.
+
+### 5. Use the bindings
+
+**`Main.lean`**
+```lean
+import Generated.MyLib
+
+open Generated.MyLib
+
+def main : IO Unit := do
+  let ctx ← create 42
+  match ← doThing ctx with
+  | .ok () => IO.println s!"Value: {← getValue ctx}"
+  | .error e => IO.println s!"Error: {e}"
+```
+
+### Complete working example
+
+See [`examples/starter/`](./examples/starter/) for a self-contained
+project that builds and runs without any external dependencies. Clone
+and run:
+
+```sh
+cd examples/starter
+lake update && lake build && .lake/build/bin/demo
+```
+
+```
+counter library v1.0.0
+Initial value: 0
+After +10: 10
+After +32: 42
+Done!
+```
+
+---
 
 ## DSL reference
 
@@ -152,66 +268,7 @@ cconst MY_CONST : Int32 := "42"
 cconst MY_FLAG : UInt32 := "1"
 ```
 
-## Real-world example
-
-Here's a real binding to libclingo's signature API (~60 lines DSL vs ~120 lines records):
-
-```lean
-import LeanBindgen
-
-open LeanBindgen LeanBindgen.DSL
-
-def clingoBindings : Bindings := c_bindings {
-  header "/opt/homebrew/include/clingo.h"
-  module Generated.Clingo
-  out_dir ".lake/build/generated"
-  shim "csrc/clingo-shim.c"
-  lib "clingo"
-  preprocessor ["-DCLINGO_NO_VISIBILITY", "-I/opt/homebrew/include"]
-
-  scalar clingo_signature_t => Signature : UInt64
-  scalar clingo_symbol_t => Symbol : UInt64
-
-  enum clingo_error_t => Error tag clingo_error
-    | clingo_error_success => success
-    | clingo_error_runtime => runtime
-    | clingo_error_logic => logic
-    | clingo_error_bad_alloc => badAlloc
-    | clingo_error_unknown => unknown
-
-  opaque clingo_control_t => Control freed_by clingo_control_free
-
-  struct clingo_location_t => Location tag clingo_location
-    | begin_file => beginFile
-    | end_file => endFile
-    | begin_line => beginLine
-    | end_line => endLine
-    | begin_column => beginColumn
-    | end_column => endColumn
-
-  enum clingo_warning_t => Warning tag clingo_warning
-    | clingo_warning_operation_undefined => operationUndefined
-    | clingo_warning_runtime_error => runtimeError
-    | clingo_warning_atom_undefined => atomUndefined
-    | clingo_warning_file_included => fileIncluded
-    | clingo_warning_variable_unbounded => variableUnbounded
-    | clingo_warning_global_variable => globalVariable
-    | clingo_warning_other => other
-
-  callback clingo_logger_t => Logger
-
-  cfn clingo_signature_create => mk out[3] on_error string clingo_error_message
-  cfn clingo_signature_name => name
-  cfn clingo_signature_arity => arity
-  cfn clingo_signature_is_positive => isPositive
-  cfn clingo_signature_is_negative => isNegative
-  cfn clingo_error_code => errorCode +io
-  cfn clingo_error_string => errorString
-  cfn clingo_control_interrupt => interrupt +io
-  cfn clingo_parse_term => parseTerm out[4] on_error string clingo_error_message callback_data [2]
-  cfn clingo_symbol_create_function => mkFun out[4] on_error string clingo_error_message array_pairs [(1, 2)]
-}
-```
+---
 
 ## What gets generated
 
@@ -244,22 +301,6 @@ LEAN_EXPORT lean_obj_res lean_clingo_signature_create(
 }
 ```
 
-## Integration with Lake
-
-Link the generated shim in your `lakefile.lean`:
-
-```lean
-extern_lib mylib_shim pkg :=
-  buildCBinding pkg "mylib-shim" {
-    shimSources := #["csrc/mylib-shim.c"]
-    includeDirs := #["/path/to/mylib/include"]
-  }
-```
-
-See [`LeanBindgen/Lake.lean`](./LeanBindgen/Lake.lean) for the helper, or
-[`examples/clingo-signature-runtime/lakefile.lean`](./examples/clingo-signature-runtime/lakefile.lean)
-for a self-contained example.
-
 ## How it works
 
 ```
@@ -282,6 +323,35 @@ for a self-contained example.
     Generated/<Module>.lean
     csrc/<lib>-shim.c
 ```
+
+## Lake integration
+
+Lake cannot import library modules into lakefile elaboration, so the
+`extern_lib` stanza is inlined (~10 lines). This is the same pattern
+used by [Raylib.lean](https://github.com/KislyjKisel/Raylib.lean) and
+the Lean 4 upstream FFI tests.
+
+The minimal stanza for a **system library**:
+
+```lean
+package «my-project» where
+  moreLinkArgs := #["-L/opt/homebrew/lib", "-lmylib"]
+
+extern_lib «mylib-shim» pkg := do
+  let leanIncDir := (← getLeanIncludeDir).toString
+  let weakArgs := #["-I", leanIncDir, "-I/opt/homebrew/include"]
+  let traceArgs := #["-fPIC"]
+  let sources : Array FilePath := #["csrc/mylib-shim.c"]
+  let oJobs ← sources.mapM fun src => do
+    let oFile := pkg.buildDir / src.withExtension "o"
+    let srcJob ← inputTextFile (pkg.dir / src)
+    buildO oFile srcJob weakArgs traceArgs
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "mylib-shim") oJobs
+```
+
+For a **vendored library** (source included in your repo), add the `.c`
+files to `sources` and the include path to `weakArgs` — no `moreLinkArgs`
+needed since everything is in the static archive.
 
 ## Safety
 
@@ -347,12 +417,13 @@ lake build && ./.lake/build/bin/link-test    # 32 assertions
 ```
 lean-bindgen/
 ├── LeanBindgen/
-│   ├── DSL.lean              ← the c_bindings macro
+│   ├── DSL.lean              the c_bindings macro
 │   ├── Annotation.lean       Bindings / TypeAnno / FunctionAnno types
 │   ├── Codegen.lean          emitter (~3600 lines)
 │   ├── Lake.lean             reusable extern_lib helper
 │   └── C/                    tokenizer + recursive-descent parser
 ├── examples/
+│   ├── starter/              self-contained getting-started project
 │   ├── Examples/
 │   │   ├── ClingoSignatureDSL.lean   DSL example (clingo subset)
 │   │   ├── ZlibDirectDSL.lean        DSL example (zlib)
